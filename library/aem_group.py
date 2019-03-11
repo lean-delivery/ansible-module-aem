@@ -89,11 +89,13 @@ class AEMGroup(object):
         self.state = str(self.module.params['state'])
         self.id = str(self.module.params['id'])
         self.name = str(self.module.params['name'])
-        self.groups = str(self.module.params['groups'])
+        self.groups = self.module.params['groups']
         self.admin_user = str(self.module.params['admin_user'])
         self.admin_password = str(self.module.params['admin_password'])
         self.host = str(self.module.params['host'])
         self.port = str(self.module.params['port'])
+        self.url = str(self.host + ':' + self.port)
+        self.auth = (self.admin_user, self.admin_password)
         #        self.version        = self.module.params['version']
 
         self.changed = False
@@ -121,9 +123,9 @@ class AEMGroup(object):
     def get_group_info(self):
         if self.aem61:
             r = requests.get(
-                self.host + ':' + self.port + '/bin/querybuilder.json?path=/home/groups&1_property=rep'
-                                              ':authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.id,
-                auth=(self.admin_user, self.admin_password)
+                self.url + '/bin/querybuilder.json?path=/home/groups&1_property=rep'
+                           ':authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.id,
+                auth=self.auth
             )
             if r.status_code != 200:
                 self.module.fail_json(msg='Error searching for group. status=%s output=%s' % (r.status_code, r.text))
@@ -135,7 +137,7 @@ class AEMGroup(object):
         else:
             self.path = '/home/groups/%s/%s' % (self.id_initial, self.id)
 
-        r = requests.get('%s.rw.json?props=*' % (self.path))
+        r = requests.get(self.url + '%s.rw.json?props=*' % (self.path), auth=self.auth)
         if r.status_code == 200:
             self.exists = True
             info = r.json()
@@ -190,9 +192,7 @@ class AEMGroup(object):
                 pass
                 # for group in self.groups:
                 #    fields.append(('membership', group))
-            r = requests.post(self.host + ':' + self.port + '/libs/granite/security/post/authorizables', auth=(
-                self.admin_user, self.admin_password), data=fields)
-            self.module.fail_json(msg='failed: %s - %s' % (r.status_code, r.text))
+            r = requests.post(self.url + '/libs/granite/security/post/authorizables', auth=self.auth, data=fields)
             self.get_group_info()
             if r.status_code != 201 or not self.exists:
                 self.module.fail_json(msg='failed to create group: %s - %s' % (r.status_code, r.text))
@@ -205,8 +205,7 @@ class AEMGroup(object):
     def update_name(self):
         fields = [('profile/givenName', self.name)]
         if not self.module.check_mode:
-            r = requests.post('%s.rw.html' % (self.path), auth=(self.admin_user, self.admin_password),
-                              data=json.dumps(fields))
+            r = requests.post(self.url + '%s.rw.html' % (self.path), auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update name: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -220,8 +219,7 @@ class AEMGroup(object):
         if not self.module.check_mode:
             for group in self.groups:
                 fields.append(('membership', group))
-            r = requests.post('%s.rw.html' % (self.path), auth=(self.admin_user, self.admin_password),
-                              data=json.dumps(fields))
+            r = requests.post(self.url + '%s.rw.html' % (self.path), auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -233,7 +231,7 @@ class AEMGroup(object):
     def delete_group(self):
         fields = [('deleteAuthorizable', '')]
         if not self.module.check_mode:
-            r = requests.post('%s.rw.html' % (self.path), data=json.dumps(fields))
+            r = requests.post(self.url + '%s.rw.html' % (self.path), auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to delete group: %s - %s' % (r.status_code, r.text))
         self.changed = True
