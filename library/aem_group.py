@@ -96,7 +96,7 @@ class AEMGroup(object):
         self.port = str(self.module.params['port'])
         self.url = str(self.host + ':' + self.port)
         self.auth = (self.admin_user, self.admin_password)
-        #        self.version        = self.module.params['version']
+        self.permissions = self.module.params['permissions']
 
         self.changed = False
         self.msg = []
@@ -106,14 +106,6 @@ class AEMGroup(object):
             self.msg.append('Running in check mode')
 
         self.aem61 = True
-        #        ver = self.version.split('.')
-        #        if int(ver[0]) >= 6:
-        # aem6 must have all groups and all users in the 'everyone' group
-        #            if not "everyone" in self.groups:
-        # everyone group not listed, so add it
-        #                 self.groups.append("everyone")
-        #            if int(ver[1]) >=1:
-        #                self.aem61 = True
 
         self.get_group_info()
 
@@ -165,11 +157,13 @@ class AEMGroup(object):
                 groups = ','.join(self.groups).lower()
                 if curr_groups != groups:
                     self.update_groups()
+            self.add_permissions()
         else:
             # Create new group
             if not self.name:
                 self.module.fail_json(msg='Missing required argument: name')
             self.create_group()
+            self.add_permissions()
 
     # --------------------------------------------------------------------------------
     # state='absent'
@@ -188,10 +182,6 @@ class AEMGroup(object):
             ('./profile/givenName', self.name),
         ]
         if not self.module.check_mode:
-            if self.groups:
-                pass
-                # for group in self.groups:
-                #    fields.append(('membership', group))
             r = requests.post(self.url + '/libs/granite/security/post/authorizables', auth=self.auth, data=fields)
             self.get_group_info()
             if r.status_code != 201 or not self.exists:
@@ -238,6 +228,23 @@ class AEMGroup(object):
         self.msg.append("group '%s' deleted" % (self.id))
 
     # --------------------------------------------------------------------------------
+    # Add permissions to a group
+    # --------------------------------------------------------------------------------
+    def add_permissions(self):
+        for permission in self.permissions:
+            fields = [
+                ('authorizableId', self.id),
+                ('_charset_', 'utf - 8'),
+                ('changelog', permission),
+            ]
+            if not self.module.check_mode:
+                r = requests.post(self.url + '/.cqactions.html', auth=self.auth, data=fields)
+                if r.status_code != 200 or not self.exists:
+                    self.module.fail_json(msg='failed to add permissions to a group')
+
+    #        self.changed = True
+    #        self.msg.append("added '%s' permissions" % self.permissions)
+    # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
     # --------------------------------------------------------------------------------
     def exit_status(self):
@@ -259,6 +266,7 @@ def main():
             admin_password=dict(required=True, no_log=True),
             host=dict(required=True),
             port=dict(required=True, type='int'),
+            permissions=dict(default=None, type='list'),
             #            version        = dict(required=True),
         ),
         supports_check_mode=True
