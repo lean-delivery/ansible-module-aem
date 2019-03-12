@@ -117,6 +117,23 @@ class AEMBundle(object):
             'action %s was performmed on bundle %s' %
             (self.action, self.name))
 
+    def apply_task(self):
+        if self.exists:
+            if self.action == 'start':
+                if not self.active:
+                    self.do_action()
+
+            elif self.action == 'stop':
+                if self.active:
+                    self.do_action()
+
+            else:
+                self.do_action()
+
+        else:
+            self.module.fail_json(msg="can't find bundle '%s'" % (self.name))
+
+
     def show_message(self):
         if self.changed:
             msg = ','.join(self.msg)
@@ -144,7 +161,7 @@ def main():
     )
 
     bundle = AEMBundle(module)
-    bundle.do_action()
+    bundle.apply_task()
     bundle.show_message()
 
 
