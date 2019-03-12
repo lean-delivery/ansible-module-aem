@@ -248,7 +248,7 @@ class AEMGroup(object):
     # --------------------------------------------------------------------------------
     def update_groups(self):
         fields = []
-        if not self.module.check_mode:
+        if not self.module.check_mode and self.groups:
             for group in self.groups:
                 fields.append(('membership', group))
             r = requests.post(self.url + '%s/.rw.html' % self.path, auth=self.auth, data=fields)
