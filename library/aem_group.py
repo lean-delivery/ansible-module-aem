@@ -237,7 +237,7 @@ class AEMGroup(object):
     def update_name(self):
         fields = [('profile/givenName', self.name)]
         if not self.module.check_mode:
-            r = requests.post(self.url + '%s.rw.html' % self.path, auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s/.rw.html' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update name: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -251,7 +251,7 @@ class AEMGroup(object):
         if not self.module.check_mode:
             for group in self.groups:
                 fields.append(('membership', group))
-            r = requests.post(self.url + '%s.rw.html' % self.path, auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s/.rw.html' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -263,7 +263,7 @@ class AEMGroup(object):
     def add_to_root_group(self):
         if not self.module.check_mode:
             fields = [('addMembers', self.id)]
-            r = requests.post(self.url + '%s.rw.html' % self.root_group_path, auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s/.rw.html' % self.root_group_path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to add to root group: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -275,7 +275,7 @@ class AEMGroup(object):
     def delete_group(self):
         fields = [('deleteAuthorizable', '')]
         if not self.module.check_mode:
-            r = requests.post(self.url + '%s.rw.html' % self.path, auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s/.rw.html' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to delete group: %s - %s' % (r.status_code, r.text))
         self.changed = True
