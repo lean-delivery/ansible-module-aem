@@ -76,7 +76,7 @@ class AEMBundle(object):
     """docstring for AEMBundle"""
 
     def __init__(self, arg):
-#        super(AEMBundle, self).__init__()
+        # super(AEMBundle, self).__init__()
         self.module = arg
         self.name = self.module.params['name']
         self.action = self.module.params['action']
@@ -132,7 +132,6 @@ class AEMBundle(object):
 
         else:
             self.module.fail_json(msg="can't find bundle '%s'" % (self.name))
-
 
     def show_message(self):
         if self.changed:
