@@ -39,6 +39,11 @@ options:
               Only required when creating a new account.
         required: true
         default: null
+    root_group:
+        description:
+            - Parent group.
+        required: true
+        default: null    
     permissions:
         description:
             - Set of permissions for group.
@@ -107,6 +112,8 @@ class AEMGroup(object):
         self.url = str(self.host + ':' + self.port)
         self.auth = (self.admin_user, self.admin_password)
         self.permissions = self.module.params['permissions']
+        self.root_group = self.module.params['root_group']
+        self.root_group_path = ''
         self.path = ''
         self.curr_groups = []
         self.curr_name = ''
@@ -123,7 +130,7 @@ class AEMGroup(object):
         self.get_group_info()
 
     # --------------------------------------------------------------------------------
-    # Look up package info.
+    # Look up group info.
     # --------------------------------------------------------------------------------
     def get_group_info(self):
         if self.aem61:
@@ -154,6 +161,25 @@ class AEMGroup(object):
             self.exists = False
 
     # --------------------------------------------------------------------------------
+    # Look up root group info.
+    # --------------------------------------------------------------------------------
+    def get_root_group_path(self):
+        if self.aem61:
+            r = requests.get(
+                self.url + '/bin/querybuilder.json?path=/home/groups&1_property=rep'
+                           ':authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.root_group,
+                auth=self.auth
+            )
+            if r.status_code != 200:
+                self.module.fail_json(
+                    msg='Error searching for root group. status=%s output=%s' % (r.status_code, r.text))
+            info = r.json()
+            if len(info['hits']) == 0:
+                self.exists = False
+                return
+            self.root_group_path = info['hits'][0]['jcr:path']
+
+    # --------------------------------------------------------------------------------
     # state='present'
     # --------------------------------------------------------------------------------
     def present(self):
@@ -170,12 +196,16 @@ class AEMGroup(object):
                 if curr_groups != groups:
                     self.update_groups()
             self.add_permissions()
+            if self.root_group:
+                self.add_to_root_group()
         else:
             # Create new group
             if not self.name:
                 self.module.fail_json(msg='Missing required argument: name')
             self.create_group()
             self.add_permissions()
+            if self.root_group:
+                self.add_to_root_group()
 
     # --------------------------------------------------------------------------------
     # state='absent'
@@ -228,6 +258,18 @@ class AEMGroup(object):
         self.msg.append("groups updated from '%s' to '%s'" % (self.curr_groups, self.groups))
 
     # --------------------------------------------------------------------------------
+    # Add to root group
+    # --------------------------------------------------------------------------------
+    def add_to_root_group(self):
+        if not self.module.check_mode:
+            fields = [('addMembers', self.id)]
+            r = requests.post(self.url + '%s.rw.html' % self.root_group_path, auth=self.auth, data=fields)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to add to root group: %s - %s' % (r.status_code, r.text))
+        self.changed = True
+        self.msg.append("group added to '%s'" % self.root_group)
+
+    # --------------------------------------------------------------------------------
     # Delete a group
     # --------------------------------------------------------------------------------
     def delete_group(self):
@@ -276,6 +318,7 @@ def main():
             admin_password=dict(required=True, no_log=True),
             host=dict(required=True),
             port=dict(required=True, type='int'),
+            root_group=dict(required=True, type='str'),
             permissions=dict(default=None, type='list'),
         ),
         supports_check_mode=True
