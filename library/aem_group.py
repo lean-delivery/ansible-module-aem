@@ -113,10 +113,6 @@ class AEMGroup(object):
         self.auth = (self.admin_user, self.admin_password)
         self.permissions = self.module.params['permissions']
         self.root_group = self.module.params['root_group']
-        self.root_group_path = ''
-        self.path = ''
-        self.curr_groups = []
-        self.curr_name = ''
         self.exists = False
 
         self.changed = False
@@ -153,9 +149,11 @@ class AEMGroup(object):
         if r.status_code == 200:
             self.exists = True
             info = r.json()
+            self.module.fail_json(msg=info)
             self.curr_name = info['name']
             self.curr_groups = []
-            for entry in info['declaredMemberOf']:
+            self.curr_root_group = info["memberOf"]['name']
+            for entry in info['declaredMembers']:
                 self.curr_groups.append(entry['authorizableId'])
         else:
             self.exists = False
@@ -266,6 +264,8 @@ class AEMGroup(object):
             r = requests.post(self.url + '%s/.rw.html' % self.root_group_path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to add to root group: %s - %s' % (r.status_code, r.text))
+        if self.curr_root_group != self.root_group:
+            self.changed = True
         self.msg.append("group added to '%s'" % self.root_group)
 
     # --------------------------------------------------------------------------------
