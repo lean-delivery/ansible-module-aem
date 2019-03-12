@@ -6,20 +6,18 @@
 # GNU General Public License v3.0+ (see COPYING or
 # https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import json
 import requests
 
 DOCUMENTATION = '''
 ---
-module: aemgroup
+module: aem_group
 short_description: Manage AEM groups
 description:
-    - Create, modify and delete AEM groups
+    - Create, modify, delete and manage permissions AEM groups
 author: Paul Markham
+contributors: Lean Delivery Team
 notes:  
-        - This module only does basic group management. It doesn't handle access control lists so it's not that useful.
-          It's more to create groups that contain other groups, e.g. a 'sysadmin' group is in the administrator group;
-          'developers' are in the 'readonly' group.
+        - This module does group management. 
 options:
     id:
         description:
@@ -41,6 +39,11 @@ options:
               Only required when creating a new account.
         required: true
         default: null
+    permissions:
+        description:
+            - Set of permissions for group.
+        required: False
+        default: null    
     admin_user:
         description:
             - AEM admin user account name
@@ -61,28 +64,35 @@ options:
 
 EXAMPLES = '''
 # Create a group
-- aemgroup: id=sysadmin
-           name='Systems Administrators'
-           groups='administrators'
-           host=auth01
-           port=4502
-           admin_user=admin
-           admin_password=admin
-           state=present
+- aem_group: 
+    id: sysadmin
+    name: 'Systems Administrators'
+    groups: 'administrators'
+    host: 'http://example.com'
+    port: 4502
+    admin_user: admin
+    admin_password: admin
+    permissions:
+        - 'path:/,read:true'
+        - 'path:/etc/packages,read:true,modify:true,create:true,delete:false,replicate:true'    
+    state: present
 
 # Delete a group
-- aemgroup: id=devs
-           host=auth01
-           port=4502
-           admin_user=admin
-           admin_password=admin
-           state=absent
+- aem_group: 
+    id: devs
+    host: 'http://example.com'
+    port: 4502
+    admin_user: admin
+    admin_password: admin
+    state: absent
 '''
 
 
 # --------------------------------------------------------------------------------
 # AEMGroup class.
 # --------------------------------------------------------------------------------
+
+
 class AEMGroup(object):
     def __init__(self, module):
         self.module = module
@@ -97,6 +107,10 @@ class AEMGroup(object):
         self.url = str(self.host + ':' + self.port)
         self.auth = (self.admin_user, self.admin_password)
         self.permissions = self.module.params['permissions']
+        self.path = ''
+        self.curr_groups = []
+        self.curr_name = ''
+        self.exists = False
 
         self.changed = False
         self.msg = []
@@ -106,7 +120,6 @@ class AEMGroup(object):
             self.msg.append('Running in check mode')
 
         self.aem61 = True
-
         self.get_group_info()
 
     # --------------------------------------------------------------------------------
@@ -149,7 +162,6 @@ class AEMGroup(object):
             if self.name:
                 if self.curr_name != self.name:
                     self.update_name()
-
             if self.groups:
                 self.curr_groups.sort()
                 self.groups.sort()
@@ -187,7 +199,7 @@ class AEMGroup(object):
             if r.status_code != 201 or not self.exists:
                 self.module.fail_json(msg='failed to create group: %s - %s' % (r.status_code, r.text))
         self.changed = True
-        self.msg.append("group '%s' created" % (self.id))
+        self.msg.append("group '%s' created" % self.id)
 
     # --------------------------------------------------------------------------------
     # Update name
@@ -195,7 +207,7 @@ class AEMGroup(object):
     def update_name(self):
         fields = [('profile/givenName', self.name)]
         if not self.module.check_mode:
-            r = requests.post(self.url + '%s.rw.html' % (self.path), auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s.rw.html' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update name: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -209,7 +221,7 @@ class AEMGroup(object):
         if not self.module.check_mode:
             for group in self.groups:
                 fields.append(('membership', group))
-            r = requests.post(self.url + '%s.rw.html' % (self.path), auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s.rw.html' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -221,11 +233,11 @@ class AEMGroup(object):
     def delete_group(self):
         fields = [('deleteAuthorizable', '')]
         if not self.module.check_mode:
-            r = requests.post(self.url + '%s.rw.html' % (self.path), auth=self.auth, data=fields)
+            r = requests.post(self.url + '%s.rw.html' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to delete group: %s - %s' % (r.status_code, r.text))
         self.changed = True
-        self.msg.append("group '%s' deleted" % (self.id))
+        self.msg.append("group '%s' deleted" % self.id)
 
     # --------------------------------------------------------------------------------
     # Add permissions to a group
@@ -242,8 +254,6 @@ class AEMGroup(object):
                 if r.status_code != 200 or not self.exists:
                     self.module.fail_json(msg='failed to add permissions to a group')
 
-    #        self.changed = True
-    #        self.msg.append("added '%s' permissions" % self.permissions)
     # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
     # --------------------------------------------------------------------------------
@@ -267,7 +277,6 @@ def main():
             host=dict(required=True),
             port=dict(required=True, type='int'),
             permissions=dict(default=None, type='list'),
-            #            version        = dict(required=True),
         ),
         supports_check_mode=True
     )
