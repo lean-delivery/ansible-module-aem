@@ -266,7 +266,6 @@ class AEMGroup(object):
             r = requests.post(self.url + '%s/.rw.html' % self.root_group_path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to add to root group: %s - %s' % (r.status_code, r.text))
-        self.changed = True
         self.msg.append("group added to '%s'" % self.root_group)
 
     # --------------------------------------------------------------------------------
