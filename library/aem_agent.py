@@ -13,7 +13,7 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 
 DOCUMENTATION = u'''
 ---
-module: aemagent
+module: aem_agent
 author:
 - Paul Markham
 - Lean Delivery Team
