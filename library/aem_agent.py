@@ -6,7 +6,7 @@
 # GNU General Public License v3.0+ (see COPYING or
 # https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import requests
+import requests, HTMLParser
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
@@ -191,6 +191,8 @@ class AEMAgent(object):
         self.port               = self.module.params['port']
         self.connect_timeout    = self.module.params['connect_timeout']
         self.protocol_version   = self.module.params['protocol_version']
+        self.url                = str(self.host + ':' + self.port)
+        self.auth               = (self.admin_user, self.admin_password)
 
         if self.module.params['headers']:
             html = HTMLParser.HTMLParser()
@@ -246,10 +248,10 @@ class AEMAgent(object):
     # Look up agent info.
     # --------------------------------------------------------------------------------
     def get_agent_info(self):
-        (status, output) = self.http_request('GET', '/etc/replication/%s/%s.4.json' % (self.folder, self.name))
-        if status == 200:
+        r = requests.get(self.url+'/etc/replication/%s/%s.4.json' % (self.folder, self.name), self.auth)
+        if r.status_code == 200:
             self.exists = True
-            self.info = json.loads(output)
+            self.info = r.json()
             if 'enabled' in self.info['jcr:content']:
                 self.enabled = self.info['jcr:content']['enabled']
             else:
@@ -270,7 +272,7 @@ class AEMAgent(object):
 
             if self.retry_delay != int(self.info['jcr:content']['retryDelay']):
                 update_required = True
-                self.msg.append("retry_delay updated from '%s' to '%s'" % (self.info['jcr:content']['retryDelay'], self_retry_delay))
+                self.msg.append("retry_delay updated from '%s' to '%s'" % (self.info['jcr:content']['retryDelay'], self.retry_delay))
 
             if not 'serializationType' in self.info['jcr:content']:
                 self.info['jcr:content']['serializationType'] = ''
@@ -476,10 +478,10 @@ class AEMAgent(object):
             for k,v in trigger_setting.iteritems():
                 fields.append(('jcr:content/%s' % self.trigger_map[k], v)) 
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '/etc/replication/%s/%s' % (self.folder, self.name), fields)
+            r = requests.post(self.url+'/etc/replication/%s/%s' % (self.folder, self.name), self.auth, fields)
             self.get_agent_info()
-            if status < 200 or status > 299 or not self.exists:
-                self.module.fail_json(msg='failed to create agent: %s - %s' % (status, output))
+            if r.status_code < 200 or r.status_code > 299 or not self.exists:
+                self.module.fail_json(msg='failed to create agent: %s - %s' % r)
         self.changed = True
     
     # --------------------------------------------------------------------------------
@@ -487,9 +489,9 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def delete_agent(self):
         if not self.module.check_mode:
-            (status, output) = self.http_request('DELETE', '/etc/replication/%s/%s' % (self.folder, self.name))
-            if status != 204:
-                self.module.fail_json(msg='failed to delete agent: %s - %s' % (status, output))
+            r = requests.delete(self.url+'/etc/replication/%s/%s' % (self.folder, self.name), self.auth)
+            if r.status_code != 204:
+                self.module.fail_json(msg='failed to delete agent: %s - %s' % r)
         self.changed = True
         self.msg.append('agent deleted')
 
@@ -499,9 +501,9 @@ class AEMAgent(object):
     def enable_agent(self):
         fields = [('jcr:content/enabled', 'true')]
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '/etc/replication/%s/%s' % (self.folder, self.name), fields)
-            if status != 200:
-                self.module.fail_json(msg='failed to enable agent: %s - %s' % (status, output))
+            r = requests.post(self.url+'/etc/replication/%s/%s' % (self.folder, self.name), self.auth, fields)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to enable agent: %s - %s' % r)
         self.changed = True
         self.msg.append('agent enabled')
 
@@ -511,9 +513,9 @@ class AEMAgent(object):
     def disable_agent(self):
         fields = [('jcr:content/enabled', 'false')]
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '/etc/replication/%s/%s' % (self.folder, self.name), fields)
-            if status != 200:
-                self.module.fail_json(msg='failed to disable agent: %s - %s' % (status, output))
+            r = requests.post(self.url+'/etc/replication/%s/%s' % (self.folder, self.name), self.auth, fields)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to disable agent: %s - %s' % r)
         self.changed = True
         self.msg.append('agent disabled')
 
@@ -523,30 +525,11 @@ class AEMAgent(object):
     def set_password(self):
         fields = [('jcr:content/transportPassword', self.transport_password)]
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '/etc/replication/%s/%s' % (self.folder, self.name), fields)
-            if status != 200:
-                self.module.fail_json(msg='failed to change password: %s - %s' % (status, output))
+            r = requests.post(self.url+'/etc/replication/%s/%s' % (self.folder, self.name), self.auth, fields)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to change password: %s - %s' % r)
         self.changed = True
         self.msg.append('password changed')
-
-    # --------------------------------------------------------------------------------
-    # Issue http request.
-    # --------------------------------------------------------------------------------
-    def http_request(self, method, url, fields = None):
-        headers = {'Authorization' : 'Basic ' + base64.b64encode(self.admin_user + ':' + self.admin_password)}
-        if fields:
-            data = urllib.urlencode(fields)
-            headers['Content-type'] = 'application/x-www-form-urlencoded'
-        else:
-            data = None
-        conn = httplib.HTTPConnection(self.host + ':' + str(self.port))
-        try:
-            conn.request(method, url, data, headers)
-        except Exception as e:
-            self.module.fail_json(msg="http request '%s %s' failed: %s" % (method, url, e))
-        resp = conn.getresponse()
-        output = resp.read()
-        return (resp.status, output)
 
     # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
