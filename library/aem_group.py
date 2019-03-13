@@ -149,10 +149,9 @@ class AEMGroup(object):
         if r.status_code == 200:
             self.exists = True
             info = r.json()
-            self.module.fail_json(msg=info)
             self.curr_name = info['name']
             self.curr_groups = []
-            self.curr_root_group = info["memberOf"]['name']
+            self.curr_root_group = info["memberOf"][0]['name']
             for entry in info['declaredMembers']:
                 self.curr_groups.append(entry['authorizableId'])
         else:
@@ -177,6 +176,7 @@ class AEMGroup(object):
                 return
             self.root_group_path = info['hits'][0]['jcr:path']
 
+
     # --------------------------------------------------------------------------------
     # state='present'
     # --------------------------------------------------------------------------------
@@ -195,6 +195,7 @@ class AEMGroup(object):
                     self.update_groups()
             self.add_permissions()
             if self.root_group:
+                self.get_root_group_path()
                 self.add_to_root_group()
         else:
             # Create new group
@@ -203,6 +204,7 @@ class AEMGroup(object):
             self.create_group()
             self.add_permissions()
             if self.root_group:
+                self.get_root_group_path()
                 self.add_to_root_group()
 
     # --------------------------------------------------------------------------------
@@ -245,11 +247,11 @@ class AEMGroup(object):
     # Update groups
     # --------------------------------------------------------------------------------
     def update_groups(self):
-        fields = []
+        fields = {"memberAction": "addMembers"}
         if not self.module.check_mode and self.groups:
             for group in self.groups:
-                fields.append(('membership', group))
-            r = requests.post(self.url + '%s/.rw.html' % self.path, auth=self.auth, data=fields)
+                fields['memberEntry'] = group
+                r = requests.post(self.url + '%s' % self.path, auth=self.auth, files={"memberAction": "addMembers", "memberEntry": "administrators"})
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
