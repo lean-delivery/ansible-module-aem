@@ -512,7 +512,7 @@ class AEMAgent(object):
                               data=fields)
             self.get_agent_info()
             if r.status_code < 200 or r.status_code > 299 or not self.exists:
-                self.module.fail_json(msg='failed to create agent: %s - %s' % r)
+                self.module.fail_json(msg='failed to create agent: %s - %s' % (r.status_code, r.text))
         self.changed = True
 
     # --------------------------------------------------------------------------------
@@ -522,7 +522,7 @@ class AEMAgent(object):
         if not self.module.check_mode:
             r = requests.delete(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth)
             if r.status_code != 204:
-                self.module.fail_json(msg='failed to delete agent: %s - %s' % r)
+                self.module.fail_json(msg='failed to delete agent: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append('agent deleted')
 
@@ -535,7 +535,7 @@ class AEMAgent(object):
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
-                self.module.fail_json(msg='failed to enable agent: %s - %s' % r)
+                self.module.fail_json(msg='failed to enable agent: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append('agent enabled')
 
@@ -548,7 +548,7 @@ class AEMAgent(object):
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
-                self.module.fail_json(msg='failed to disable agent: %s - %s' % r)
+                self.module.fail_json(msg='failed to disable agent: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append('agent disabled')
 
@@ -561,7 +561,7 @@ class AEMAgent(object):
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
-                self.module.fail_json(msg='failed to change password: %s - %s' % r)
+                self.module.fail_json(msg='failed to change password: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append('password changed')
 
