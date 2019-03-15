@@ -26,7 +26,12 @@ options:
         description:
             - State of agent
         required: true
-        choices: [present, absent, enabled, disabled, password]
+        choices: [present, absent]
+    action:
+        description:
+            - Set action of agent
+        required: false
+        choices: [enabled, disabled, password]    
     name:
         description:
             - agent name
@@ -179,6 +184,7 @@ class AEMAgent(object):
     def __init__(self, module):
         self.module = module
         self.state = self.module.params['state']
+        self.action = self.module.params['action']
         self.folder = self.module.params['folder']
         self.name = self.module.params['name']
         self.title = self.module.params['title']
@@ -428,7 +434,7 @@ class AEMAgent(object):
             self.delete_agent()
 
     # --------------------------------------------------------------------------------
-    # state='enabled'
+    # action='enabled'
     # --------------------------------------------------------------------------------
     def enable(self):
         if self.exists:
@@ -438,7 +444,7 @@ class AEMAgent(object):
             self.module.fail_json(msg="can't find agent '/etc/replication/%s/%s'" % (self.folder, self.name))
 
     # --------------------------------------------------------------------------------
-    # state='disabled'
+    # action='disabled'
     # --------------------------------------------------------------------------------
     def disable(self):
         if self.exists:
@@ -448,7 +454,7 @@ class AEMAgent(object):
             self.module.fail_json(msg="can't find agent '/etc/replication/%s/%s'" % (self.folder, self.name))
 
     # --------------------------------------------------------------------------------
-    # state='set_password'
+    # action='password'
     # --------------------------------------------------------------------------------
     def password(self):
         if self.exists:
@@ -582,7 +588,8 @@ class AEMAgent(object):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(required=True, choices=['present', 'absent', 'enabled', 'disabled', 'password']),
+            state=dict(required=True, choices=['present', 'absent']),
+            action=dict(required=False, choices=['enabled', 'disabled', 'password']),
             folder=dict(required=True),
             name=dict(required=True),
             title=dict(default=None),
@@ -615,17 +622,21 @@ def main():
     agent = AEMAgent(module)
 
     state = module.params['state']
+    action = module.params.get('action')
 
     if state == 'present':
         agent.present()
+        if action:
+            if action == 'enabled':
+                agent.enable()
+            elif action == 'disabled':
+                agent.disable()
+            elif action == 'password':
+                agent.password()
+            else:
+                module.fail_json(msg='Invalid action: %s' % action)
     elif state == 'absent':
         agent.absent()
-    elif state == 'enabled':
-        agent.enable()
-    elif state == 'disabled':
-        agent.disable()
-    elif state == 'password':
-        agent.password()
     else:
         module.fail_json(msg='Invalid state: %s' % state)
 
