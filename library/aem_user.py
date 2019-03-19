@@ -13,11 +13,11 @@ import re
 
 DOCUMENTATION = '''
 ---
-module: aemuser
+module: aem_user
 short_description: Manage AEM users
 description:
     - Create, modify and delete AEM users
-author: Paul Markham
+author: Paul Markham, Lean Delivery Team
 notes:
     - The password specified is the initial password and is only used when the account is created.
       If the account exists, the password isn't changed.
