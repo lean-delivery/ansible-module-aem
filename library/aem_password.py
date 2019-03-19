@@ -12,9 +12,6 @@
 
 
 import requests
-import urllib
-import base64
-
 
 DOCUMENTATION = '''
 ---
@@ -50,14 +47,9 @@ options:
         description:
             - Return ok if neither the old nor new passwords are valid for the user.
         required: false
-    version:
-        description:
-            - version of AEM this module is running against..
-        required: false
-        default: 6.0.0
 '''
 
-EXAMPLES='''
+EXAMPLES = '''
 # Change admin password from default
 - aem_password: 
     id: admin
@@ -67,22 +59,22 @@ EXAMPLES='''
     port: 4502
 '''
 
+
 # --------------------------------------------------------------------------------
 # AEMPassword class.
 # --------------------------------------------------------------------------------
 class AEMPassword(object):
     def __init__(self, module):
-        self.module            = module
-        self.id                = self.module.params['id']
-        self.new_password      = self.module.params['new_password']
+        self.module = module
+        self.id = self.module.params['id']
+        self.new_password = self.module.params['new_password']
         self.old_password_list = self.module.params['old_password']
-        self.ignore_err        = self.module.params['ignore_err']
-        self.host              = str(self.module.params['host'])
-        self.port              = str(self.module.params['port'])
-        self.version           = self.module.params['version']
-        self.url               = self.host + ':' + self.port
-        self.auth              = (self.admin_user, self.admin_password)
-        
+        self.ignore_err = self.module.params['ignore_err']
+        self.host = str(self.module.params['host'])
+        self.port = str(self.module.params['port'])
+        self.url = self.host + ':' + self.port
+        self.auth = (self.admin_user, self.admin_password)
+
         self.changed = False
         self.msg = []
         self.id_initial = self.id[0]
@@ -100,7 +92,7 @@ class AEMPassword(object):
         self.msg.append('checking new password')
         if self.aem61:
             r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&'
-                                      '1_property=rep:authorizableId&1_property.value=%s&p.limit=-1'
+                                        '1_property=rep:authorizableId&1_property.value=%s&p.limit=-1'
                              % (self.id), auth=self.auth)
         else:
             r = requests.get(self.url + '/home/users/%s/%s.rw.json?props=*'
@@ -141,14 +133,14 @@ class AEMPassword(object):
                     ('plain', self.new_password),
                     ('verify', self.new_password),
                     ('old', self.old_password),
-                    ]
+                ]
                 r = requests.post(self.url + '/crx/explorer/ui/setpassword.jsp',
                                   user=self.id, auth=self.auth, fields=fields)
             else:
                 fields = [
                     (':currentPassword', self.old_password),
                     ('rep:password', self.new_password),
-                    ]
+                ]
                 r = requests.post(self.url + '/home/users/%s/%s.rw.html'
                                   % (self.id_initial, self.id), auth=self.auth, fields=fields)
             if r.status_code != 200:
@@ -163,26 +155,27 @@ class AEMPassword(object):
         msg = ','.join(self.msg)
         self.module.exit_json(changed=self.changed, msg=msg)
 
+
 # --------------------------------------------------------------------------------
 # Mainline.
 # --------------------------------------------------------------------------------
 def main():
     module = AnsibleModule(
-        argument_spec      = dict(
-            id             = dict(required=True),
-            new_password   = dict(required=True, no_log=True),
-            old_password   = dict(required=True, type='list', no_log=True),
-            admin_user     = dict(required=False), # no longer needed
-            admin_password = dict(required=False, no_log=True), # no longer needed
-            host           = dict(required=True),
-            port           = dict(required=True, type='int'),
-            ignore_err     = dict(default=False, type='bool'),
-            ),
+        argument_spec=dict(
+            id=dict(required=True),
+            new_password=dict(required=True, no_log=True),
+            old_password=dict(required=True, type='list', no_log=True),
+            admin_user=dict(required=False),  # no longer needed
+            admin_password=dict(required=False, no_log=True),  # no longer needed
+            host=dict(required=True),
+            port=dict(required=True, type='int'),
+            ignore_err=dict(default=False, type='bool'),
+        ),
         supports_check_mode=True
-        )
+    )
 
     password = AEMPassword(module)
-    
+
     password.set_password()
 
     password.exit_status()
