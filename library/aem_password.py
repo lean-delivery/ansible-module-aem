@@ -134,14 +134,14 @@ class AEMPassword(object):
                     ('old', self.old_password),
                 ]
                 r = requests.post(self.url + '/crx/explorer/ui/setpassword.jsp',
-                                  user=self.id, auth=(self.id, self.old_password), fields=fields)
+                                  auth=(self.id, self.old_password), data=fields)
             else:
                 fields = [
                     (':currentPassword', self.old_password),
                     ('rep:password', self.new_password),
                 ]
                 r = requests.post(self.url + '/home/users/%s/%s.rw.html'
-                                  % (self.id_initial, self.id), auth=(self.id, self.old_password), fields=fields)
+                                  % (self.id_initial, self.id), auth=(self.id, self.old_password), data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to change password: %s - %s' % (r.status_code, r.text))
         self.changed = True
