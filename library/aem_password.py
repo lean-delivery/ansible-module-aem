@@ -10,23 +10,19 @@
 
 # Note: you must supply both the old and new passwords for this to work
 
-import sys
-import os
-import platform
-import httplib
+
+import requests
 import urllib
 import base64
-import json
-import string
-import random
+
 
 DOCUMENTATION = '''
 ---
-module: aempassword
+module: aem_password
 short_description: Change Adobe CQ Password
 description:
     - Change Adobe CQ Password
-author: Paul Markham
+author: Paul Markham, Lean Delivery Team
 notes:
     - This is mostly used to change the Admin password from the default of 'admin'.
 options:
@@ -63,11 +59,12 @@ options:
 
 EXAMPLES='''
 # Change admin password from default
-- aempassword: id=admin
-              old_password=admin
-              new_password=S3cr3t
-              host=auth01
-              port=4502
+- aem_password: 
+    id: admin
+    old_password: admin
+    new_password: S3cr3t
+    host: "http://localhost"
+    port: 4502
 '''
 
 # --------------------------------------------------------------------------------
@@ -80,19 +77,17 @@ class AEMPassword(object):
         self.new_password      = self.module.params['new_password']
         self.old_password_list = self.module.params['old_password']
         self.ignore_err        = self.module.params['ignore_err']
-        self.host              = self.module.params['host']
-        self.port              = self.module.params['port']
+        self.host              = str(self.module.params['host'])
+        self.port              = str(self.module.params['port'])
         self.version           = self.module.params['version']
+        self.url               = self.host + ':' + self.port
+        self.auth              = (self.admin_user, self.admin_password)
         
         self.changed = False
         self.msg = []
         self.id_initial = self.id[0]
 
-        ver = self.version.split('.')
-        if int(ver[0]) >= 6 and int(ver[1]) >= 1:
-            self.aem61 = True
-        else:
-            self.aem61 = False
+        self.aem61 = True
 
         self.get_user_info()
 
@@ -104,10 +99,13 @@ class AEMPassword(object):
         # check if new password is already valid
         self.msg.append('checking new password')
         if self.aem61:
-            (status, output) = self.http_request('GET', '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&1_property.value=%s&p.limit=-1' % (self.id), user = self.id, password = self.new_password)
+            r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&'
+                                      '1_property=rep:authorizableId&1_property.value=%s&p.limit=-1'
+                             % (self.id), auth=self.auth)
         else:
-            (status, output) = self.http_request('GET', '/home/users/%s/%s.rw.json?props=*' % (self.id_initial, self.id), user = self.id, password = self.new_password)
-        if status == 200:
+            r = requests.get(self.url + '/home/users/%s/%s.rw.json?props=*'
+                             % (self.id_initial, self.id), auth=self.auth)
+        if r.status_code == 200:
             self.msg.append("password doesn't need to be changed")
             self.exit_status()
 
@@ -116,10 +114,13 @@ class AEMPassword(object):
         for password in self.old_password_list:
             self.msg.append('checking password "%s"' % password)
             if self.aem61:
-                (status, output) = self.http_request('GET', '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&1_property.value=%s&p.limit=-1' % (self.id), user = self.id, password = password)
+                r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&'
+                                            '1_property.value=%s&p.limit=-1'
+                                 % self.id, auth=self.auth)
             else:
-                (status, output) = self.http_request('GET', '/home/users/%s/%s.rw.json?props=*' % (self.id_initial, self.id), user = self.id, password = password)
-            if status == 200:
+                r = requests.get(self.url + '/home/users/%s/%s.rw.json?props=*'
+                                 % (self.id_initial, self.id), auth=self.auth)
+            if r.status_code == 200:
                 old_password_valid = True
                 self.old_password = password
                 break
@@ -141,37 +142,19 @@ class AEMPassword(object):
                     ('verify', self.new_password),
                     ('old', self.old_password),
                     ]
-                (status, output) = self.http_request('POST', '/crx/explorer/ui/setpassword.jsp', user = self.id, password = self.old_password, fields = fields)
+                r = requests.post(self.url + '/crx/explorer/ui/setpassword.jsp',
+                                  user=self.id, auth=self.auth, fields=fields)
             else:
                 fields = [
                     (':currentPassword', self.old_password),
                     ('rep:password', self.new_password),
                     ]
-                (status, output) = self.http_request('POST', '/home/users/%s/%s.rw.html' % (self.id_initial, self.id), user = self.id, password = self.old_password, fields = fields)
-##            self.exit_status()
-            if status != 200:
-                self.module.fail_json(msg='failed to change password: %s - %s' % (status, output))
+                r = requests.post(self.url + '/home/users/%s/%s.rw.html'
+                                  % (self.id_initial, self.id), auth=self.auth, fields=fields)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to change password: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append('password changed')
-
-    # --------------------------------------------------------------------------------
-    # Issue http request.
-    # --------------------------------------------------------------------------------
-    def http_request(self, method, url, user, password, fields = None):
-        headers = {'Authorization' : 'Basic ' + base64.b64encode(str(user) + ':' + str(password))}
-        if fields:
-            data = urllib.urlencode(fields)
-            headers['Content-type'] = 'application/x-www-form-urlencoded'
-        else:
-            data = None
-        conn = httplib.HTTPConnection(self.host + ':' + str(self.port))
-        try:
-            conn.request(method, url, data, headers)
-        except Exception as e:
-            self.module.fail_json(msg="http request '%s %s' failed: %s" % (method, url, e))
-        resp = conn.getresponse()
-        output = resp.read()
-        return (resp.status, output)
 
     # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
@@ -194,7 +177,6 @@ def main():
             host           = dict(required=True),
             port           = dict(required=True, type='int'),
             ignore_err     = dict(default=False, type='bool'),
-            version        = dict(default='6.0.0'),
             ),
         supports_check_mode=True
         )
