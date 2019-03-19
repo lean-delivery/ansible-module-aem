@@ -73,7 +73,6 @@ class AEMPassword(object):
         self.host = str(self.module.params['host'])
         self.port = str(self.module.params['port'])
         self.url = self.host + ':' + self.port
-        self.auth = (self.admin_user, self.admin_password)
 
         self.changed = False
         self.msg = []
@@ -93,10 +92,10 @@ class AEMPassword(object):
         if self.aem61:
             r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&'
                                         '1_property=rep:authorizableId&1_property.value=%s&p.limit=-1'
-                             % (self.id), auth=self.auth)
+                             % self.id, auth=(self.id, self.new_password))
         else:
             r = requests.get(self.url + '/home/users/%s/%s.rw.json?props=*'
-                             % (self.id_initial, self.id), auth=self.auth)
+                             % (self.id_initial, self.id), auth=(self.id, self.new_password))
         if r.status_code == 200:
             self.msg.append("password doesn't need to be changed")
             self.exit_status()
@@ -108,10 +107,10 @@ class AEMPassword(object):
             if self.aem61:
                 r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&'
                                             '1_property.value=%s&p.limit=-1'
-                                 % self.id, auth=self.auth)
+                                 % self.id, auth=(self.id, password))
             else:
                 r = requests.get(self.url + '/home/users/%s/%s.rw.json?props=*'
-                                 % (self.id_initial, self.id), auth=self.auth)
+                                 % (self.id_initial, self.id), auth=(self.id, password))
             if r.status_code == 200:
                 old_password_valid = True
                 self.old_password = password
@@ -135,14 +134,14 @@ class AEMPassword(object):
                     ('old', self.old_password),
                 ]
                 r = requests.post(self.url + '/crx/explorer/ui/setpassword.jsp',
-                                  user=self.id, auth=self.auth, fields=fields)
+                                  user=self.id, auth=(self.id, self.old_password), fields=fields)
             else:
                 fields = [
                     (':currentPassword', self.old_password),
                     ('rep:password', self.new_password),
                 ]
                 r = requests.post(self.url + '/home/users/%s/%s.rw.html'
-                                  % (self.id_initial, self.id), auth=self.auth, fields=fields)
+                                  % (self.id_initial, self.id), auth=(self.id, self.old_password), fields=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to change password: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -180,8 +179,10 @@ def main():
 
     password.exit_status()
 
+
 # --------------------------------------------------------------------------------
 # Ansible boiler plate code.
 # --------------------------------------------------------------------------------
 from ansible.module_utils.basic import *
+
 main()
