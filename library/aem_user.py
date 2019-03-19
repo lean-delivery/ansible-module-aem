@@ -6,14 +6,8 @@
 # GNU General Public License v3.0+ (see COPYING or
 # https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import sys
-import os
-import platform
-import httplib
-import urllib
-import base64
 import json
-import string
+import requests
 import random
 import re
 
@@ -141,10 +135,13 @@ class AEMUser(object):
     # --------------------------------------------------------------------------------
     def get_user_info(self):
         if self.aem61:
-            (status, output) = self.http_request('GET', '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.id)
-            if status != 200:
-                self.module.fail_json(msg="Error searching for user '%s'. status=%s output=%s" % (self.id, status, output))
-            info = json.loads(output)
+            r = requests.get('/bin/querybuilder.json?path=/home/users&1_'
+                             'property=rep:authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.id,
+                             auth=self.auth)
+            if r.status_code != 200:
+                self.module.fail_json(msg="Error searching for user '%s'. status=%s output=%s"
+                                          % (self.id, r.status_code, r.text))
+            info = json.loads(r.text)
             if len(info['hits']) == 0:
                 self.exists = False
                 return
@@ -152,10 +149,10 @@ class AEMUser(object):
         else:
             self.path = '/home/users/%s/%s' % (self.id_initial, self.id)
 
-        (status, output) = self.http_request('GET', '%s.rw.json?props=*' % (self.path))
-        if status == 200:
+        r = requests.get('%s.rw.json?props=*' % self.path, auth=self.auth)
+        if r.status_code == 200:
             self.exists = True
-            info = json.loads(output)
+            info = r.json()
             self.curr_name = info['name']
             self.curr_groups = []
             for entry in info['declaredMemberOf']:
@@ -221,10 +218,10 @@ class AEMUser(object):
                 fields.append(('rep:password', self.password))
             for group in self.groups:
                 fields.append(('membership', group))
-            (status, output) = self.http_request('POST', '/libs/granite/security/post/authorizables', fields)
+            r = requests.post('/libs/granite/security/post/authorizables', fields, auth=self.auth)
             self.get_user_info()
-            if status != 201 or not self.exists:
-                self.module.fail_json(msg='failed to create user: %s - %s' % (status, output))
+            if r.status_code != 201 or not self.exists:
+                self.module.fail_json(msg='failed to create user: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append("user '%s' created" % (self.id))
     
@@ -237,9 +234,9 @@ class AEMUser(object):
             ('profile/familyName', self.last_name),
             ]
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '%s.rw.html' % (self.path), fields)
-            if status != 200:
-                self.module.fail_json(msg='failed to update name: %s - %s' % (status, output))
+            r = requests.post('%s.rw.html' % self.path, fields, auth=self.auth)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to update name: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append("name updated from '%s' to '%s %s'" % (self.curr_name, self.first_name, self.last_name))
 
@@ -251,9 +248,9 @@ class AEMUser(object):
         for group in self.groups:
             fields.append(('membership', group))
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '%s.rw.html' % (self.path), fields)
-            if status != 200:
-                self.module.fail_json(msg='failed to update groups: %s - %s' % (status, output))
+            r = requests.post('%s.rw.html' % self.path, fields, auth=self.auth)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append("groups updated from '%s' to '%s'" % (self.curr_groups, self.groups))
 
@@ -263,30 +260,11 @@ class AEMUser(object):
     def delete_user(self):
         fields = [('deleteAuthorizable', '')]
         if not self.module.check_mode:
-            (status, output) = self.http_request('POST', '%s.rw.html' % (self.path), fields)
-            if status != 200:
-                self.module.fail_json(msg='failed to delete user: %s - %s' % (status, output))
+            r = requests.post('%s.rw.html' % self.path, fields, auth=self.auth)
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to delete user: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append("user '%s' deleted" % (self.id))
-
-    # --------------------------------------------------------------------------------
-    # Issue http request.
-    # --------------------------------------------------------------------------------
-    def http_request(self, method, url, fields = None):
-        headers = {'Authorization' : 'Basic ' + base64.b64encode(self.admin_user + ':' + self.admin_password)}
-        if fields:
-            data = urllib.urlencode(fields)
-            headers['Content-type'] = 'application/x-www-form-urlencoded'
-        else:
-            data = None
-        conn = httplib.HTTPConnection(self.host + ':' + str(self.port))
-        try:
-            conn.request(method, url, data, headers)
-        except Exception as e:
-            self.module.fail_json(msg="http request '%s %s' failed: %s" % (method, url, e))
-        resp = conn.getresponse()
-        output = resp.read()
-        return (resp.status, output)
 
     # --------------------------------------------------------------------------------
     # Generate a random password 
