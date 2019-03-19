@@ -108,9 +108,8 @@ class AEMUser(object):
         self.password = self.module.params['password']
         self.admin_user = self.module.params['admin_user']
         self.admin_password = self.module.params['admin_password']
-        self.host = self.module.params['host']
-        self.port = self.module.params['port']
-        self.version = self.module.params['version']
+        self.host = str(self.module.params['host'])
+        self.port = str(self.module.params['port'])
         self.url = self.host + ':' + self.port
         self.auth = (self.admin_user, self.admin_password)
 
@@ -121,15 +120,10 @@ class AEMUser(object):
         if self.module.check_mode:
             self.msg.append('Running in check mode')
 
-        self.aem61 = False
-        ver = self.version.split('.')
-        if int(ver[0]) >= 6:
-            # aem6 must have all groups and all users in the 'everyone' group
-            if not "everyone" in self.groups:
-                # everyone group not listed, so add it
-                self.groups.append("everyone")
-            if int(ver[1]) >= 1:
-                self.aem61 = True
+        self.aem61 = True
+        if "everyone" not in self.groups:
+            # everyone group not listed, so add it
+            self.groups.append("everyone")
 
         self.get_user_info()
 
@@ -332,7 +326,6 @@ def main():
             admin_password=dict(required=True, no_log=True),
             host=dict(required=True),
             port=dict(required=True, type='int'),
-            version=dict(required=True),
         ),
         supports_check_mode=True
     )
