@@ -11,7 +11,6 @@ import requests
 import random
 import re
 
-
 DOCUMENTATION = '''
 ---
 module: aemuser
@@ -71,45 +70,50 @@ options:
         required: true
 '''
 
-EXAMPLES='''
+EXAMPLES = '''
 # Create a user
-- aemuser: id=bbaggins
-          first_name=Bilbo
-          last_name=Baggins
-          password=myprecious
-          groups='immortality,invisibility'
-          host=auth01
-          port=4502
-          admin_user=admin
-          admin_password=admin
-          state=present
+- aem_user: 
+    id: bbaggins
+    first_name: Bilbo
+    last_name: Baggins
+    password: myprecious
+    groups: 'immortality,invisibility'
+    host: auth01
+    port: 4502
+    admin_user: admin
+    admin_password: admin
+    state: present
 
 # Delete a user
-- aemuser: id=gollum
-          host=auth01
-          port=4502
-          admin_user=admin
-          admin_password=admin
-          state=absent
+- aem_user: 
+    id: golum
+    port: 4502
+    admin_user: admin
+    admin_password: admin
+    state: absent
 '''
+
+
 # --------------------------------------------------------------------------------
 # AEMUser class.
 # --------------------------------------------------------------------------------
 class AEMUser(object):
     def __init__(self, module):
-        self.module         = module
-        self.state          = self.module.params['state']
-        self.id             = self.module.params['id']
-        self.first_name     = self.module.params['first_name']
-        self.last_name      = self.module.params['last_name']
-        self.groups         = self.module.params['groups']
-        self.password       = self.module.params['password']
-        self.admin_user     = self.module.params['admin_user']
+        self.module = module
+        self.state = self.module.params['state']
+        self.id = self.module.params['id']
+        self.first_name = self.module.params['first_name']
+        self.last_name = self.module.params['last_name']
+        self.groups = self.module.params['groups']
+        self.password = self.module.params['password']
+        self.admin_user = self.module.params['admin_user']
         self.admin_password = self.module.params['admin_password']
-        self.host           = self.module.params['host']
-        self.port           = self.module.params['port']
-        self.version        = self.module.params['version']
-        
+        self.host = self.module.params['host']
+        self.port = self.module.params['port']
+        self.version = self.module.params['version']
+        self.url = self.host + ':' + self.port
+        self.auth = (self.admin_user, self.admin_password)
+
         self.changed = False
         self.msg = []
         self.id_initial = self.id[0]
@@ -120,23 +124,22 @@ class AEMUser(object):
         self.aem61 = False
         ver = self.version.split('.')
         if int(ver[0]) >= 6:
-            # aem6 must have all groups and all users in the 'everyone' group 
+            # aem6 must have all groups and all users in the 'everyone' group
             if not "everyone" in self.groups:
-                 # everyone group not listed, so add it
-                 self.groups.append("everyone")
-            if int(ver[1]) >=1:
+                # everyone group not listed, so add it
+                self.groups.append("everyone")
+            if int(ver[1]) >= 1:
                 self.aem61 = True
 
         self.get_user_info()
-
 
     # --------------------------------------------------------------------------------
     # Look up user info.
     # --------------------------------------------------------------------------------
     def get_user_info(self):
         if self.aem61:
-            r = requests.get('/bin/querybuilder.json?path=/home/users&1_'
-                             'property=rep:authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.id,
+            r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&1_'
+                                        'property=rep:authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.id,
                              auth=self.auth)
             if r.status_code != 200:
                 self.module.fail_json(msg="Error searching for user '%s'. status=%s output=%s"
@@ -149,7 +152,7 @@ class AEMUser(object):
         else:
             self.path = '/home/users/%s/%s' % (self.id_initial, self.id)
 
-        r = requests.get('%s.rw.json?props=*' % self.path, auth=self.auth)
+        r = requests.get(self.url + '%s.rw.json?props=*' % self.path, auth=self.auth)
         if r.status_code == 200:
             self.exists = True
             info = r.json()
@@ -174,7 +177,7 @@ class AEMUser(object):
                 self.module.fail_json(msg='Missing required argumanet: last_name')
             elif self.last_name and not self.first_name:
                 self.module.fail_json(msg='Missing required argumanet: first_name')
-               
+
             if self.groups:
                 self.curr_groups.sort()
                 self.groups.sort()
@@ -212,19 +215,19 @@ class AEMUser(object):
             ('authorizableId', self.id),
             ('profile/givenName', self.first_name),
             ('profile/familyName', self.last_name),
-            ]
+        ]
         if not self.module.check_mode:
             if self.password:
                 fields.append(('rep:password', self.password))
             for group in self.groups:
                 fields.append(('membership', group))
-            r = requests.post('/libs/granite/security/post/authorizables', fields, auth=self.auth)
+            r = requests.post(self.url + '/libs/granite/security/post/authorizables', fields, auth=self.auth)
             self.get_user_info()
             if r.status_code != 201 or not self.exists:
                 self.module.fail_json(msg='failed to create user: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append("user '%s' created" % (self.id))
-    
+
     # --------------------------------------------------------------------------------
     # Update name
     # --------------------------------------------------------------------------------
@@ -232,9 +235,9 @@ class AEMUser(object):
         fields = [
             ('profile/givenName', self.first_name),
             ('profile/familyName', self.last_name),
-            ]
+        ]
         if not self.module.check_mode:
-            r = requests.post('%s.rw.html' % self.path, fields, auth=self.auth)
+            r = requests.post(self.url + '%s.rw.html' % self.path, fields, auth=self.auth)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update name: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -248,7 +251,7 @@ class AEMUser(object):
         for group in self.groups:
             fields.append(('membership', group))
         if not self.module.check_mode:
-            r = requests.post('%s.rw.html' % self.path, fields, auth=self.auth)
+            r = requests.post(self.url + '%s.rw.html' % self.path, fields, auth=self.auth)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
@@ -260,51 +263,50 @@ class AEMUser(object):
     def delete_user(self):
         fields = [('deleteAuthorizable', '')]
         if not self.module.check_mode:
-            r = requests.post('%s.rw.html' % self.path, fields, auth=self.auth)
+            r = requests.post(self.url + '%s.rw.html' % self.path, fields, auth=self.auth)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to delete user: %s - %s' % (r.status_code, r.text))
         self.changed = True
         self.msg.append("user '%s' deleted" % (self.id))
 
     # --------------------------------------------------------------------------------
-    # Generate a random password 
+    # Generate a random password
     # --------------------------------------------------------------------------------
     def generate_password(self):
         chars = string.ascii_letters + string.digits + '!@#$%^&*()-_=+.,:;|?'
         self.password = ''
-        for i in range(0,16):
+        for i in range(0, 16):
             self.password += random.choice(chars)
         self.msg.append("generated password '%s'" % self.password)
-
 
     # --------------------------------------------------------------------------------
     # Check strength of a password
     # Adapted from: http://thelivingpearl.com/2013/01/02/generating-and-checking-passwords-in-python/
     # --------------------------------------------------------------------------------
     def check_password(self):
-        #strength = ['Blank','Very Weak','Weak','Medium','Strong','Very Strong']
+        # strength = ['Blank','Very Weak','Weak','Medium','Strong','Very Strong']
         score = 1
 
         if len(self.password) < 1:
             return strength[0]
         if len(self.password) < 4:
             return strength[1]
-    
-        if len(self.password) >=8:
+
+        if len(self.password) >= 8:
             score = score + 1
-        if len(self.password) >=12:
+        if len(self.password) >= 12:
             score = score + 1
-        
-        if re.search('\d+',self.password):
+
+        if re.search('\d+', self.password):
             score = score + 1
-        if re.search('[a-z]',self.password) and re.search('[A-Z]',self.password):
+        if re.search('[a-z]', self.password) and re.search('[A-Z]', self.password):
             score = score + 1
-        if re.search('.,[,!,@,#,$,%,^,&,*,(,),_,~,-,]',self.password):
+        if re.search('.,[,!,@,#,$,%,^,&,*,(,),_,~,-,]', self.password):
             score = score + 1
-    
+
         if score < 5:
-            self.module.fail_json(msg="Password too weak. Minimum length is 12, with characters from three of groups: upper, lower, numeric and special")
-    
+            self.module.fail_json(
+                msg="Password too weak. Minimum length is 12, with characters from three of groups: upper, lower, numeric and special")
 
     # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
@@ -319,24 +321,24 @@ class AEMUser(object):
 # --------------------------------------------------------------------------------
 def main():
     module = AnsibleModule(
-        argument_spec      = dict(
-            id             = dict(required=True),
-            state          = dict(required=True, choices=['present', 'absent']),
-            first_name     = dict(default=None),
-            last_name      = dict(default=None),
-            password       = dict(default=None, no_log=True),
-            groups         = dict(default=None, type='list'),
-            admin_user     = dict(required=True),
-            admin_password = dict(required=True, no_log=True),
-            host           = dict(required=True),
-            port           = dict(required=True, type='int'),
-            version        = dict(required=True),
-            ),
+        argument_spec=dict(
+            id=dict(required=True),
+            state=dict(required=True, choices=['present', 'absent']),
+            first_name=dict(default=None),
+            last_name=dict(default=None),
+            password=dict(default=None, no_log=True),
+            groups=dict(default=None, type='list'),
+            admin_user=dict(required=True),
+            admin_password=dict(required=True, no_log=True),
+            host=dict(required=True),
+            port=dict(required=True, type='int'),
+            version=dict(required=True),
+        ),
         supports_check_mode=True
-        )
+    )
 
     user = AEMUser(module)
-    
+
     state = module.params['state']
 
     if state == 'present':
@@ -348,8 +350,10 @@ def main():
 
     user.exit_status()
 
+
 # --------------------------------------------------------------------------------
 # Ansible boiler plate code.
 # --------------------------------------------------------------------------------
 from ansible.module_utils.basic import *
+
 main()
