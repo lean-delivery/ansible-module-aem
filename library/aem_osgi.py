@@ -8,9 +8,12 @@
 
 
 import requests
-import base64
-import json
+import re
 import yaml
+# --------------------------
+# Ansible boiler plate code.
+# --------------------------
+from ansible.module_utils.basic import *
 
 DOCUMENTATION = '''
 ---
@@ -22,7 +25,7 @@ description:
       running it (this is machine when you run ansible when used as
       local action or target, managed machine when used as regular
       action).
-author: Daniel Siechniewicz / nullDowntime Ltd / daniel@nulldowntime.com (modified by Paul Markham - blame me if I broke something)
+author: Daniel Siechniewicz / nullDowntime Ltd / daniel@nulldowntime.com modified by Paul Markham, Lean Delivery Team .
 notes:
     - This module manages bolean, string, array, appending to array and
       factory type settings.
@@ -60,7 +63,7 @@ options:
             - Value to set the property to
     osgimode:
         description:
-            - "Mode (type) of osgi property: string, array, arrayappend, factory"
+            - "Mode (type) of osgi property: string,array,arrayappend,factory"
     admin_user:
         description:
             - Adobe AEM admin user account name
@@ -78,7 +81,6 @@ options:
             - Port number that Adobe AEM is listening on
         required: true
 '''
-
 
 EXAMPLES = '''
 # Set/modify a string type setting. Use true or false as value
@@ -161,32 +163,38 @@ class AEMOsgi(object):
         self.osgimode = self.module.params['osgimode']
         self.admin_user = self.module.params['admin_user']
         self.admin_password = self.module.params['admin_password']
-        self.host = self.module.params['host']
-        self.port = self.module.params['port']
-
+        self.auth = (self.admin_user, self.admin_password)
+        self.url = self.module.params['url']
         self.changed = False
         self.modevalue = {'string': 'value', 'array': 'values',
                           'arrayappend': 'values', 'factory': 'na'}
         self.msg = []
         self.factory_instances = []
-
+        self.curr_props = []
         self.get_osgi_info()
+        self.exists = False
+        self.factory = []
 
     # ---------------------
     # Look up package info.
     # ---------------------
     def get_osgi_info(self):
         if self.osgimode in ('string', 'array', 'arrayappend'):
-            (status, output) = self.http_request('POST',
-                                                 '/system/console/configMgr/%s' % (
-                                                     self.id))
-            info = json.loads(output)
+
+            r = requests.post(
+                '%s/system/console/configMgr/%s' % (self.url, self.id),
+                auth=self.auth)
+
+            if r.status_code != 200:
+                self.module.fail_json(msg='Error searching for osgi id. status\
+                =%s output=%s' % (r.status_code, r.text))
+            info = r.json()
             self.curr_props = info['properties']
             if self.curr_props[self.property]:
                 self.exists = True
             else:
                 self.exists = False
-        elif self.osgimode in ('factory'):
+        elif self.osgimode in 'factory':
             self.find_factory()
         else:
             self.module.fail_json(
@@ -196,18 +204,21 @@ class AEMOsgi(object):
     # Find factory config
     # -------------------
     def find_factory(self):
-        (status, output) = self.http_request('GET',
-                                             '/system/console/config/Configura\
-                                             tions.txt')
+        r = requests.get(
+            '%s/system/console/config/Configurations.txt' % self.url,
+            auth=self.auth)
+        if r.status_code != 200:
+            self.module.fail_json(msg='Requests failed\
+            =%s output=%s' % (r.status_code, r.text))
+
         instances = re.findall(
-            '^PID.*=.*(%s\.[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-\
-            z0-9]{12})\s*$' % self.id,
-            output, flags=re.M)
+            '^PID.*=.*(%s\.[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})\s*$' % self.id,
+            r.text, flags=re.M)
         if instances:
             # Instances of a factory found
             factories = {}
             for fi in instances:
-                factory_data = re.findall('(PID = %s.*?)\n^PID' % fi, output,
+                factory_data = re.findall('(PID = %s.*?)\n^PID' % fi, r.text,
                                           flags=re.DOTALL | re.M)
                 factory = {}
                 for kvp in factory_data[0].splitlines():
@@ -269,19 +280,20 @@ class AEMOsgi(object):
                 fields.append((k, v))
         fields.append(('propertylist', ','.join(self.value.keys())))
 
-        (status, output) = self.http_request2('POST',
-                                              '/system/console/configMgr/%5BTe\
-                                              mporary%20PID%20replaced%20by%20\
-                                              real%20PID%20upon%20save%5D',
-                                              fields)
-        if status != 200:
+        r = requests.post(
+            '%s/system/console/configMgr/%5BTemporary%20PID%20replaced%20by%20real%20PID%20upon%20save%5D' % self.url,
+            auth=self.auth, data=fields)
+
+        if r.status_code != 200:
             self.module.fail_json(
-                msg='failed to create factory %s: %s - %s' % (
-                    self.id, status, output))
+                msg='failed to create factory %s: %s - %s' % (self.id,
+                                                              r.status_code,
+                                                              r.text))
+
         self.changed = True
         self.find_factory()
         self.find_factory_match()
-        self.msg.append('factory %s created' % (self.factory))
+        self.msg.append('factory %s created' % self.factory)
 
     # ---------------------
     # Delete factory config
@@ -294,15 +306,15 @@ class AEMOsgi(object):
         fields.append(('delete', 'true'))
         fields.append(('apply', 'true'))
 
-        (status, output) = self.http_request2('POST',
-                                              '/system/console/configMgr/%\
-                                              s' % (
-                                                  self.factory), fields)
-        if status != 200:
-            self.module.fail_json(msg='failed to delete %s: %s - %s' % (
-                self.factory, status, output))
+        r = requests.post('%s/system/console/configMgr/%s' % (self.url,
+                                                              self.factory),
+                          auth=self.auth, data=fields)
+        if r.status_code != 200:
+            self.module.fail_json(msg='failed to delete %s: %s - %s' %
+                                      (self.factory, r.status_code, r.text))
+
         self.changed = True
-        self.msg.append('factory %s deleted' % (self.factory))
+        self.msg.append('factory %s deleted' % self.factory)
 
     # ---------------
     # state 'present'
@@ -355,7 +367,7 @@ class AEMOsgi(object):
     # state 'absent'
     # --------------
     def absent(self):
-        if self.osgimode in ('factory'):
+        if self.osgimode in 'factory':
             if self.factory_instances:
                 if self.find_factory_match():
                     self.delete_factory()
@@ -378,8 +390,7 @@ class AEMOsgi(object):
             fields.append(('apply', 'true'))
             fields.append(('action', 'ajaxConfigManager'))
             if self.osgimode == 'arrayappend':
-                for v in self.curr_props[self.property][
-                    self.modevalue.get(self.osgimode)]:
+                for v in self.curr_props[self.property][self.modevalue.get(self.osgimode)]:
                     fields.append((self.property, v))
             if type(self.value) is list:
                 for v in self.value:
@@ -388,62 +399,15 @@ class AEMOsgi(object):
             else:
                 fields.append((self.property, self.value))
             fields.append(('propertylist', self.property))
-            (status, output) = self.http_request2('POST',
-                                                  '/system/console/configMgr\
-                                                  /%s' % self.id,
-                                                  fields)
-            if status != 200:
-                self.module.fail_json(
-                    msg='failed to update property %s in %s: %s - %s' % (
-                        self.property, self.id, status, output))
+
+            r = requests.post(
+                '%s/system/console/configMgr/%s' % (self.url, self.id),
+                auth=self.auth, data=fields)
+
+            if r.status_code != 200:
+                self.module.fail_json(msg='failed to update property %s in %s: %s - %s' % (self.property, self.id, r.status_code, r.text))
             self.changed = True
             self.msg.append('property updated')
-
-    # -------------------
-    # Issue http request.
-    # -------------------
-    def http_request(self, method, url, fields=None):
-        headers = {'Authorization': 'Basic ' + base64.b64encode(
-            self.admin_user + ':' + self.admin_password)}
-        if fields:
-            data = urllib.urlencode(fields)
-            headers['Content-type'] = 'application/x-www-form-urlencoded'
-        else:
-            data = None
-        conn = httplib.HTTPConnection(self.host + ':' + str(self.port))
-        try:
-            conn.request(method, url, data, headers)
-        except Exception as e:
-            self.module.fail_json(
-                msg="http request '%s %s' failed: %s" % (method, url, e))
-        resp = conn.getresponse()
-        output = resp.read()
-        return (resp.status, output)
-
-    def http_request2(self, method, url, fields=None):
-        headers = {}
-        uri = 'http://' + self.host + ':' + str(self.port) + url
-        if fields:
-            data = urllib.urlencode(fields)
-            headers['Content-type'] = 'application/x-www-form-urlencoded'
-        else:
-            data = None
-        base64string = base64.encodestring(
-            '%s:%s' % (self.admin_user, self.admin_password)).replace('\n', '')
-        headers['Authorization'] = "Basic %s" % base64string
-        request = Request(uri, data, headers)
-        try:
-            result = urlopen(request)
-        except HTTPError as e:
-            status = e.code
-            output = e.read()
-            self.module.fail_json(
-                msg='Request to %s failed with code %s ( output: %s )' % (
-                    uri, status, output))
-        else:
-            output = result.read()
-            status = result.getcode()
-        return (status, output)
 
     # ---------------------------------
     # Return status and msg to Ansible.
@@ -466,8 +430,7 @@ def main():
             osgimode=dict(default=None),
             admin_user=dict(required=True),
             admin_password=dict(required=True),
-            host=dict(required=True),
-            port=dict(required=True, type='int'),
+            url=dict(required=True, type='str')
         ),
         supports_check_mode=True
     )
@@ -485,10 +448,5 @@ def main():
 
     osgi.exit_status()
 
-
-# --------------------------
-# Ansible boiler plate code.
-# --------------------------
-from ansible.module_utils.basic import *
 
 main()
