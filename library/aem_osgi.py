@@ -107,21 +107,19 @@ EXAMPLES = '''
     port=some_listen_port
 
 # Create factory logger configuration
-  aem_osgi: id=com.some.osgi.factory.id
-    property=factory
-    value="{ 'org.apache.sling.commons.log.level': 'debug',
-             'org.apache.sling.commons.log.file': 'logs/standby.log',
-             'org.apache.sling.commons.log.pattern': '{0,date,dd.MM.yyyy HH:mm\
-             :ss.SSS} *{4}* [{2}] {3} {5}',
-             'org.apache.sling.commons.log.names': ['org.apache.jackrabbit.oak\
-             .plugins.segment.standby.store.CommunicationObserver'],
+     - aem_osgi:
+         id: org.apache.sling.commons.log.LogManager.factory.config
+         property: "factory"
+         value:  "{ 'org.apache.sling.commons.log.level': 'debug',
+             'org.apache.sling.commons.log.file': 'logs/standby-qq2.log',
+             'org.apache.sling.commons.log.pattern': '{0,date,dd.MM.yyyy HH:mm:ss.SSS} *{4}* [{2}] {3} {5}',
+             'org.apache.sling.commons.log.names': ['org.apache.jackrabbit.oak.plugins.segment.standby.store.CommunicationObserver'],
            }"
-    osgimode=factory
-    state=present
-    admin_user=some_admin_user
-    admin_password=some_admin_pass
-    host=some_host
-    port=some_listen_port
+         osgimode: factory
+         state: present
+         admin_user: admin
+         admin_password: testtest
+         url: http://aem-node.example.com:4502
 
 # Set/modify an array type setting - contents of the property will
 # be overwritten by array provided in value
@@ -281,7 +279,7 @@ class AEMOsgi(object):
         fields.append(('propertylist', ','.join(self.value.keys())))
 
         r = requests.post(
-            '%s/system/console/configMgr/%5BTemporary%20PID%20replaced%20by%20real%20PID%20upon%20save%5D' % self.url,
+            self.url+'/system/console/configMgr/%5BTemporary%20PID%20replaced%20by%20real%20PID%20upon%20save%5D',
             auth=self.auth, data=fields)
 
         if r.status_code != 200:
