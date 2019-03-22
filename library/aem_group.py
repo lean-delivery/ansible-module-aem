@@ -39,10 +39,10 @@ options:
               Only required when creating a new account.
         required: true
         default: null
-    root_group:
+    root_groups:
         description:
-            - Parent group.
-        required: true
+            - List of parent group.
+        required: False
         default: null    
     permissions:
         description:
@@ -77,6 +77,8 @@ EXAMPLES = '''
     port: 4502
     admin_user: admin
     admin_password: admin
+    root_groups:
+        - everyone
     permissions:
         - 'path:/,read:true'
         - 'path:/etc/packages,read:true,modify:true,create:true,delete:false,replicate:true'    
@@ -112,8 +114,9 @@ class AEMGroup(object):
         self.url = str(self.host + ':' + self.port)
         self.auth = (self.admin_user, self.admin_password)
         self.permissions = self.module.params['permissions']
-        self.root_group = self.module.params['root_group']
+        self.root_groups = self.module.params['root_groups']
         self.exists = False
+        self.root_groups_path = []
 
         self.changed = False
         self.msg = []
@@ -151,7 +154,9 @@ class AEMGroup(object):
             info = r.json()
             self.curr_name = info['name']
             self.curr_groups = []
-            self.curr_root_group = info["memberOf"][0]['name']
+            self.curr_root_groups = []
+            for group in info["memberOf"]:
+                self.curr_root_groups.append(group["name"])
             for entry in info['declaredMembers']:
                 self.curr_groups.append(entry['authorizableId'])
         else:
@@ -160,21 +165,23 @@ class AEMGroup(object):
     # --------------------------------------------------------------------------------
     # Look up root group info.
     # --------------------------------------------------------------------------------
-    def get_root_group_path(self):
+    def get_root_groups_path(self):
         if self.aem61:
-            r = requests.get(
-                self.url + '/bin/querybuilder.json?path=/home/groups&1_property=rep'
-                           ':authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % self.root_group,
-                auth=self.auth
-            )
-            if r.status_code != 200:
-                self.module.fail_json(
-                    msg='Error searching for root group. status=%s output=%s' % (r.status_code, r.text))
-            info = r.json()
-            if len(info['hits']) == 0:
-                self.exists = False
-                return
-            self.root_group_path = info['hits'][0]['jcr:path']
+            for root_group in self.root_groups:
+                r = requests.get(
+                    self.url + '/bin/querybuilder.json?path=/home/groups&1_property=rep'
+                               ':authorizableId&1_property.value=%s&p.limit=-1&p.hits=full' % root_group,
+                    auth=self.auth
+                )
+                if r.status_code != 200:
+                    self.module.fail_json(
+                        msg='Error searching for root group. status=%s output=%s' % (r.status_code, r.text))
+                info = r.json()
+                if len(info['hits']) == 0:
+                    self.exists = False
+                    return
+                for hit in info['hits']:
+                    self.root_groups_path.append(hit['jcr:path'])
 
 
     # --------------------------------------------------------------------------------
@@ -194,18 +201,18 @@ class AEMGroup(object):
                 if curr_groups != groups:
                     self.update_groups()
             self.add_permissions()
-            if self.root_group:
-                self.get_root_group_path()
-                self.add_to_root_group()
+            if self.root_groups:
+                self.get_root_groups_path()
+                self.add_to_root_groups()
         else:
             # Create new group
             if not self.name:
                 self.module.fail_json(msg='Missing required argument: name')
             self.create_group()
             self.add_permissions()
-            if self.root_group:
-                self.get_root_group_path()
-                self.add_to_root_group()
+            if self.root_groups:
+                self.get_root_groups_path()
+                self.add_to_root_groups()
 
     # --------------------------------------------------------------------------------
     # state='absent'
@@ -260,15 +267,16 @@ class AEMGroup(object):
     # --------------------------------------------------------------------------------
     # Add to root group
     # --------------------------------------------------------------------------------
-    def add_to_root_group(self):
+    def add_to_root_groups(self):
         if not self.module.check_mode:
-            fields = [('addMembers', self.id)]
-            r = requests.post(self.url + '%s/.rw.html' % self.root_group_path, auth=self.auth, data=fields)
-            if r.status_code != 200:
-                self.module.fail_json(msg='failed to add to root group: %s - %s' % (r.status_code, r.text))
-        if self.curr_root_group != self.root_group:
-            self.changed = True
-        self.msg.append("group added to '%s'" % self.root_group)
+            for root_group_path in self.root_groups_path:
+                fields = [('addMembers', self.id)]
+                r = requests.post(self.url + '%s/.rw.html' % root_group_path, auth=self.auth, data=fields)
+                if r.status_code != 200:
+                    self.module.fail_json(msg='failed to add to root group: %s - %s' % (r.status_code, r.text))
+                self.msg.append("group added to '%s'" % root_group_path)
+            #if len(set(self.curr_root_groups).symmetric_difference(self.root_groups)) > 0:
+            #    self.changed = True
 
     # --------------------------------------------------------------------------------
     # Delete a group
@@ -319,7 +327,7 @@ def main():
             admin_password=dict(required=True, no_log=True),
             host=dict(required=True),
             port=dict(required=True, type='int'),
-            root_group=dict(required=True, type='str'),
+            root_groups=dict(required=False, type='list'),
             permissions=dict(default=None, type='list'),
         ),
         supports_check_mode=True
@@ -343,5 +351,4 @@ def main():
 # Ansible boiler plate code.
 # --------------------------------------------------------------------------------
 from ansible.module_utils.basic import *
-
 main()
