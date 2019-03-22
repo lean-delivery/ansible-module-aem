@@ -96,15 +96,15 @@ EXAMPLES = '''
     port=some_listen_port
 
 # Create factory type setting
-  aem_osgi: id=com.some.osgi.factory.id
-    property=factory
-    value="{ prop1: value1, prop2: value2, prop3: value3 }"
-    osgimode=factory
-    state=present
-    admin_user=some_admin_user
-    admin_password=some_admin_pass
-    host=some_host
-    port=some_listen_port
+     - aem_osgi:
+         id: com.some.osgi.factory.id
+         property: "factory"
+         value: "{ prop1: value1, prop2: value2, prop3: value3 }"
+         osgimode: factory
+         state: present
+         admin_user: admin
+         admin_password: testtest
+         url: http://aem-node.example.com:4502
 
 # Create factory logger configuration
      - aem_osgi:
@@ -329,11 +329,8 @@ class AEMOsgi(object):
                 self.create_factory()
         else:
             do_update = False
-            if type(self.curr_props[self.property][
-                        self.modevalue.get(self.osgimode)]) not in (
-                    bool, str, unicode):
-                current = sorted(self.curr_props[self.property][
-                                     self.modevalue.get(self.osgimode)])
+            if type(self.curr_props[self.property][self.modevalue.get(self.osgimode)]) not in (int, bool, str, unicode):
+                current = sorted(self.curr_props[self.property][self.modevalue.get(self.osgimode)])
             else:
                 current = self.curr_props[self.property][
                     self.modevalue.get(self.osgimode)]
@@ -397,7 +394,7 @@ class AEMOsgi(object):
             else:
                 fields.append((self.property, self.value))
             fields.append(('propertylist', self.property))
-
+            print "filds:", fields
             r = requests.post(
                 '%s/system/console/configMgr/%s' % (self.url, self.id),
                 auth=self.auth, data=fields)
@@ -427,7 +424,7 @@ def main():
             value=dict(default=None, type='str'),
             osgimode=dict(default=None),
             admin_user=dict(required=True),
-            admin_password=dict(required=True),
+            admin_password=dict(required=True, no_log=True),
             url=dict(required=True, type='str')
         ),
         supports_check_mode=True
