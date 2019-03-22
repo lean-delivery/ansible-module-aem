@@ -7,8 +7,8 @@
 # https://www.gnu.org/licenses/gpl-3.0.txt)
 
 
-import requests
 import re
+import requests
 import yaml
 # --------------------------
 # Ansible boiler plate code.
@@ -283,7 +283,7 @@ class AEMOsgi(object):
         fields.append(('propertylist', ','.join(self.value.keys())))
 
         r = requests.post(
-            self.url+'/system/console/configMgr/%5BTemporary%20PID%20replaced%20by%20real%20PID%20upon%20save%5D',
+            self.url + '/system/console/configMgr/%5BTemporary%20PID%20replaced%20by%20real%20PID%20upon%20save%5D',
             auth=self.auth, data=fields)
 
         if r.status_code != 200:
@@ -333,8 +333,11 @@ class AEMOsgi(object):
                 self.create_factory()
         else:
             do_update = False
-            if type(self.curr_props[self.property][self.modevalue.get(self.osgimode)]) not in (int, bool, str, unicode):
-                current = sorted(self.curr_props[self.property][self.modevalue.get(self.osgimode)])
+            if type(self.curr_props[self.property][
+                        self.modevalue.get(self.osgimode)]) not in (
+                    int, bool, str, unicode):
+                current = sorted(self.curr_props[self.property][
+                                     self.modevalue.get(self.osgimode)])
             else:
                 current = self.curr_props[self.property][
                     self.modevalue.get(self.osgimode)]
@@ -385,52 +388,31 @@ class AEMOsgi(object):
             self.module.fail_json(
                 msg='Currently only string, array, arrayappend and factory mo\
                 des are supported')
-        updated_props = self.curr_props.copy()
         allpropertylist = ','.join(map(str, self.curr_props.keys()))
         if not self.module.check_mode:
             fields.append(('apply', 'true'))
             fields.append(('action', 'ajaxConfigManager'))
-#            if self.osgimode == 'arrayappend':
-#                for v in self.curr_props[self.property][self.modevalue.get(self.osgimode)]:
-#                    fields.append((self.property, v))
-#            if type(self.value) is list:
-            if False :
-              pass 
-#                for v in self.value:
-#                    if v not in self.curr_props[self.property]:
-#                        fields.append((self.property, v))
-            else:
-               # updated_props[self.property] = self.value
-#                print "updated_props"
-                for i in self.curr_props.keys():
-#                  print "i: "+ i
-#                  print  self.curr_props[i].keys()
-                  valueflag = 'value'
-                  if "values" in self.curr_props[i].keys():
+            for i in self.curr_props.keys():
+                valueflag = 'value'
+                if "values" in self.curr_props[i].keys():
                     valueflag = 'values'
-#                  print valueflag
-                  value = self.curr_props[i][valueflag]
-#                  print  self.curr_props[i][valueflag]
-                  if i == self.property:
+                value = self.curr_props[i][valueflag]
+                if i == self.property:
                     if self.osgimode == 'arrayappend':
-                      value.extend(self.value)
+                        value.extend(self.value)
                     else:
-                      value = self.value
-                  fields.append((i, value))
-#                print "end"
-                
-#                fields.append((self.property, self.value))
-            
-#            print self.curr_props
-            
+                        value = self.value
+                fields.append((i, value))
+
             fields.append(('propertylist', allpropertylist))
-#            print "filds:", fields
             r = requests.post(
                 '%s/system/console/configMgr/%s' % (self.url, self.id),
                 auth=self.auth, data=fields)
 
             if r.status_code != 200:
-                self.module.fail_json(msg='failed to update property %s in %s: %s - %s' % (self.property, self.id, r.status_code, r.text))
+                self.module.fail_json(
+                    msg='failed to update property %s in %s: %s - %s' % (
+                        self.property, self.id, r.status_code, r.text))
             self.changed = True
             self.msg.append('property updated')
 
