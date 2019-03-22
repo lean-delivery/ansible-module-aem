@@ -1,4 +1,7 @@
-# Adobe Experience Manager (AEM) Ansible modules.
+# Adobe Experience Manager (AEM) Ansible modules
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat)](https://raw.githubusercontent.com/lean-delivery/ansible-modules-aem/master/LICENSE)
+[![Build Status](https://travis-ci.org/lean-delivery/ansible-modules-aem.svg?branch=master)](https://travis-ci.org/lean-delivery/ansible-modules-aem)
 
 ## How to install this modules:
 ---
