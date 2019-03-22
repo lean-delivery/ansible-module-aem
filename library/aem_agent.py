@@ -270,6 +270,8 @@ class AEMAgent(object):
                 self.enabled = self.info['jcr:content']['enabled']
             else:
                 self.enabled = 'false'
+            if not self.log_level:
+                self.log_level = ''
             if not self.info['jcr:content'].get('jcr:description'):
                 self.info['jcr:content']['jcr:description'] = ""
         else:
@@ -307,7 +309,6 @@ class AEMAgent(object):
                 update_required = True
                 self.msg.append(
                     "template updated from '%s' to '%s'" % (self.info['jcr:content']['template'], self.template))
-
             if self.transport_uri != self.info['jcr:content']['transportUri']:
                 update_required = True
                 self.msg.append("transport_uri updated from '%s' to '%s'" % (
@@ -322,6 +323,7 @@ class AEMAgent(object):
                 user_changed = True
                 self.msg.append("transport_user updated from '%s' to '%s'" % (
                 self.info['jcr:content']['transportUser'], self.transport_user))
+
             else:
                 user_changed = False
 
@@ -342,6 +344,7 @@ class AEMAgent(object):
                 self.info['jcr:content']['logLevel'] = ''
             if self.log_level != self.info['jcr:content']['logLevel']:
                 update_required = True
+                #self.changed = True
                 self.msg.append(
                     "log level updated from '%s' to '%s'" % (self.info['jcr:content']['logLevel'], self.log_level))
 
@@ -473,7 +476,6 @@ class AEMAgent(object):
 
         fields = [
             ('jcr:primaryType', 'cq:Page'),
-            ('jcr:content/enabled', 'true'),
             ('jcr:content/jcr:title', self.title),
             ('jcr:content/jcr:description', self.description),
             ('jcr:content/sling:resourceType', self.resource_type),
@@ -537,39 +539,45 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def enable_agent(self):
         fields = [('jcr:content/enabled', 'true')]
-        if not self.module.check_mode:
+        if not self.module.check_mode and not self.enabled:
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to enable agent: %s - %s' % (r.status_code, r.text))
-        self.changed = True
-        self.msg.append('agent enabled')
+            self.changed = True
+            self.msg.append('agent enabled')
+        else:
+            self.msg.append('agent already enabled')
 
     # --------------------------------------------------------------------------------
     # Disable agent
     # --------------------------------------------------------------------------------
     def disable_agent(self):
         fields = [('jcr:content/enabled', 'false')]
-        if not self.module.check_mode:
+        if not self.module.check_mode and self.enabled:
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to disable agent: %s - %s' % (r.status_code, r.text))
-        self.changed = True
-        self.msg.append('agent disabled')
+            self.changed = True
+            self.msg.append('agent disabled')
+        else:
+            self.msg.append('agent already disabled')
 
     # --------------------------------------------------------------------------------
     # Set password
     # --------------------------------------------------------------------------------
     def set_password(self):
         fields = [('jcr:content/transportPassword', self.transport_password)]
-        if not self.module.check_mode:
+        if not self.module.check_mode and self.transport_password != self.info['jcr:content']["transportPassword"]:
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to change password: %s - %s' % (r.status_code, r.text))
-        self.changed = True
-        self.msg.append('password changed')
+            self.changed = True
+            self.msg.append('password changed')
+        else:
+            self.msg.append('old password equal to new')
 
     # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
