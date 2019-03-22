@@ -85,15 +85,15 @@ options:
 EXAMPLES = '''
 # Set/modify a string type setting. Use true or false as value
 # to set boolean properties.
-  aem_osgi: id=com.some.osgi.id
-    property=some.string.type.property
-    value="somevalue"
-    osgimode=string
-    state=present
-    admin_user=some_admin_user
-    admin_password=some_admin_pass
-    host=some_host
-    port=some_listen_port
+     - aem_osgi:
+         id: com.adobe.cq.cdn.rewriter.impl.CDNRewriter
+         property: service.ranking
+         value: "5"
+         osgimode: string
+         state: present
+         admin_user: admin
+         admin_password: testtest
+         url: http://ecsb003000cf.epam.com:4502
 
 # Create factory type setting
      - aem_osgi:
@@ -123,15 +123,19 @@ EXAMPLES = '''
 
 # Set/modify an array type setting - contents of the property will
 # be overwritten by array provided in value
-  aem_osgi: id=com.some.osgi.id
-    property=some.array.type.property
-    value="[ value1, value2 ]"
-    osgimode=array
-    state=present
-    admin_user=some_admin_user
-    admin_password=some_admin_pass
-    host=some_host
-    port=some_listen_port
+     - aem_osgi:
+         id: com.adobe.cq.cdn.rewriter.impl.CDNRewriter
+         property: cdnrewriter.attributes
+         value:
+           - python
+           - perl
+           - pascal
+         osgimode: array
+         state: present
+         admin_user: admin
+         admin_password: testtest
+         url: http://ecsb003000cf.epam.com:4502
+
 
 # Set/modify an array type setting - contents of the property will
 # be appended to  array provided in value, idempotently (only once,
@@ -381,20 +385,46 @@ class AEMOsgi(object):
             self.module.fail_json(
                 msg='Currently only string, array, arrayappend and factory mo\
                 des are supported')
+        updated_props = self.curr_props.copy()
+        allpropertylist = ','.join(map(str, self.curr_props.keys()))
         if not self.module.check_mode:
             fields.append(('apply', 'true'))
             fields.append(('action', 'ajaxConfigManager'))
-            if self.osgimode == 'arrayappend':
-                for v in self.curr_props[self.property][self.modevalue.get(self.osgimode)]:
-                    fields.append((self.property, v))
-            if type(self.value) is list:
-                for v in self.value:
-                    if v not in self.curr_props[self.property]:
-                        fields.append((self.property, v))
+#            if self.osgimode == 'arrayappend':
+#                for v in self.curr_props[self.property][self.modevalue.get(self.osgimode)]:
+#                    fields.append((self.property, v))
+#            if type(self.value) is list:
+            if False :
+              pass 
+#                for v in self.value:
+#                    if v not in self.curr_props[self.property]:
+#                        fields.append((self.property, v))
             else:
-                fields.append((self.property, self.value))
-            fields.append(('propertylist', self.property))
-            print "filds:", fields
+               # updated_props[self.property] = self.value
+#                print "updated_props"
+                for i in self.curr_props.keys():
+#                  print "i: "+ i
+#                  print  self.curr_props[i].keys()
+                  valueflag = 'value'
+                  if "values" in self.curr_props[i].keys():
+                    valueflag = 'values'
+#                  print valueflag
+                  value = self.curr_props[i][valueflag]
+#                  print  self.curr_props[i][valueflag]
+                  if i == self.property:
+                    if self.osgimode == 'arrayappend':
+                      value.extend(self.value)
+                    else:
+                      value = self.value
+                  fields.append((i, value))
+#                print "end"
+                
+#                fields.append((self.property, self.value))
+            
+#            print self.curr_props
+            
+            fields.append(('propertylist', allpropertylist))
+#            print "filds:", fields
             r = requests.post(
                 '%s/system/console/configMgr/%s' % (self.url, self.id),
                 auth=self.auth, data=fields)
