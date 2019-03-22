@@ -72,13 +72,9 @@ options:
         description:
             - Adobe AEM admin user account password
         required: true
-    host:
+    url:
         description:
-            - Host name where Adobe AEM is running
-        required: true
-    port:
-        description:
-            - Port number that Adobe AEM is listening on
+            - Host:Port  that Adobe AEM is listening on
         required: true
 '''
 
@@ -93,7 +89,7 @@ EXAMPLES = '''
          state: present
          admin_user: admin
          admin_password: testtest
-         url: http://ecsb003000cf.epam.com:4502
+         url: http://aem-node.example.com:4502
 
 # Create factory type setting
      - aem_osgi:
@@ -134,21 +130,23 @@ EXAMPLES = '''
          state: present
          admin_user: admin
          admin_password: testtest
-         url: http://ecsb003000cf.epam.com:4502
-
+         url: http://aem-node.example.com:4502
 
 # Set/modify an array type setting - contents of the property will
 # be appended to  array provided in value, idempotently (only once,
 # no repeat appending will take place)
-  aem_osgi: id=com.some.osgi.id
-    property=some.arraytoappendto.type.property
-    value="[ value1, value2 ]"
-    osgimode=arrayappend
-    state=present
-    admin_user=some_admin_user
-    admin_password=some_admin_pass
-    host=some_host
-    port=some_listen_port
+     - aem_osgi:
+         id: com.adobe.cq.cdn.rewriter.impl.CDNRewriter
+         property: cdnrewriter.attributes
+         value:
+           - pyt
+           - pe
+         osgimode: arrayappend
+         state: present
+         admin_user: admin
+         admin_password: testtest
+         url: http://aem-node.example.com:4502
+
 '''
 
 
@@ -399,7 +397,10 @@ class AEMOsgi(object):
                 value = self.curr_props[i][valueflag]
                 if i == self.property:
                     if self.osgimode == 'arrayappend':
-                        value.extend(self.value)
+                        for new_item_value in self.value:
+                          if new_item_value not in value:
+                            value.append(new_item_value) 
+#                        value.extend(self.value)
                     else:
                         value = self.value
                 fields.append((i, value))
