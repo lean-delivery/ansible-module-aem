@@ -270,8 +270,7 @@ class AEMAgent(object):
                 self.enabled = self.info['jcr:content']['enabled']
             else:
                 self.enabled = 'false'
-            if not self.log_level:
-                self.log_level = ''
+
             if not self.info['jcr:content'].get('jcr:description'):
                 self.info['jcr:content']['jcr:description'] = ""
         else:
@@ -340,11 +339,10 @@ class AEMAgent(object):
                     update_required = True
                     self.msg.append("triggers updated from '%s' to '%s'" % (t1, t2))
 
-            if not 'logLevel' in self.info['jcr:content']:
-                self.info['jcr:content']['logLevel'] = ''
-            if self.log_level != self.info['jcr:content']['logLevel']:
+            if 'logLevel' not in self.info['jcr:content']:
+                self.info['jcr:content']['logLevel'] = 'info'
+            if self.log_level != self.info['jcr:content'].get('logLevel'):
                 update_required = True
-                #self.changed = True
                 self.msg.append(
                     "log level updated from '%s' to '%s'" % (self.info['jcr:content']['logLevel'], self.log_level))
 
