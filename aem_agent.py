@@ -28,12 +28,7 @@ options:
         description:
             - State of agent
         required: true
-        choices: [present, absent]
-    service:
-        description:
-            - Set service of agent
-        required: false
-        choices: [enabled, disabled, password]
+        choices: [present, absent, enabled, disabled, password]
     name:
         description:
             - agent name
@@ -186,7 +181,6 @@ class AEMAgent(object):
     def __init__(self, module):
         self.module = module
         self.state = self.module.params['state']
-        self.service = self.module.params['service']
         self.folder = self.module.params['folder']
         self.name = self.module.params['name']
         self.title = self.module.params['title']
@@ -344,6 +338,7 @@ class AEMAgent(object):
             if 'logLevel' not in self.info['jcr:content']:
                 self.info['jcr:content']['logLevel'] = 'info'
             if self.log_level != self.info['jcr:content'].get('logLevel'):
+                self.msg.append("Second '%s' to '%s'" % (self.info['jcr:content']['logLevel'], self.log_level))
                 update_required = True
                 self.msg.append(
                     "log level updated from '%s' to '%s'" % (self.info['jcr:content']['logLevel'], self.log_level))
@@ -419,6 +414,14 @@ class AEMAgent(object):
                 self.msg.append("batch max size changed from '%s' to '%s'" % (
                     self.info['jcr:content']['queueBatchMaxSize'], self.batch_max_size))
 
+            if self.state == 'present':
+                self.enable()
+            elif self.state == 'enabled':
+                self.enable()
+            elif self.state == 'disabled':
+                self.disable()
+            elif self.state == 'password':
+                self.password()
             if update_required:
                 if not user_changed:
                     self.transport_password = None
@@ -441,8 +444,7 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def enable(self):
         if self.exists:
-            if self.enabled == 'false':
-                self.enable_agent()
+            self.enable_agent()
         else:
             self.module.fail_json(msg="can't find agent '/etc/replication/%s/%s'" % (self.folder, self.name))
 
@@ -451,8 +453,7 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def disable(self):
         if self.exists:
-            if self.enabled == 'true':
-                self.disable_agent()
+            self.disable_agent()
         else:
             self.module.fail_json(msg="can't find agent '/etc/replication/%s/%s'" % (self.folder, self.name))
 
@@ -507,6 +508,11 @@ class AEMAgent(object):
                 fields.append(('jcr:content/protocolHTTPHeaders', 'CQ-Handle:{path}'))
                 fields.append(('jcr:content/protocolHTTPHeaders', 'CQ-Path:{path}'))
 
+        if self.state in ["present", "enabled"]:
+            fields.append(('jcr:content/enabled', "true"))
+        elif self.state == "disabled":
+            fields.append(('jcr:content/enabled', "false"))
+
         if self.triggers:
             trigger_setting = {}
             for t in self.trigger_map:
@@ -539,7 +545,7 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def enable_agent(self):
         fields = [('jcr:content/enabled', 'true')]
-        if not self.module.check_mode and not self.enabled:
+        if not self.module.check_mode and self.enabled != "true":
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
@@ -554,7 +560,7 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def disable_agent(self):
         fields = [('jcr:content/enabled', 'false')]
-        if not self.module.check_mode and self.enabled:
+        if not self.module.check_mode and self.enabled != "false":
             r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth,
                               data=fields)
             if r.status_code != 200:
@@ -596,8 +602,7 @@ class AEMAgent(object):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(required=True, choices=['present', 'absent']),
-            service=dict(required=False, choices=['enabled', 'disabled', 'password']),
+            state=dict(required=True, choices=['present', 'absent', 'enabled', 'disabled', 'password']),
             folder=dict(required=True),
             name=dict(required=True),
             title=dict(default=None),
@@ -630,19 +635,9 @@ def main():
     agent = AEMAgent(module)
 
     state = module.params['state']
-    service = module.params.get('service')
 
-    if state == 'present':
+    if state in ['present', 'enabled', 'disabled', 'password']:
         agent.present()
-        if service:
-            if service == 'enabled':
-                agent.enable()
-            elif service == 'disabled':
-                agent.disable()
-            elif service == 'password':
-                agent.password()
-            else:
-                module.fail_json(msg='Invalid service: %s' % service)
     elif state == 'absent':
         agent.absent()
     else:
