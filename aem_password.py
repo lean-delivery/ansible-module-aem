@@ -98,14 +98,9 @@ class AEMPassword(object):
         old_password_valid = False
         for password in self.old_password_list:
             self.msg.append('checking password "%s"' % password)
-            if self.aem61:
-                r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&'
-                                            '1_property.value=%s&p.limit=-1'
-                                 % self.id, auth=(self.id, password))
-            else:
-                r = requests.get(self.url + '/home/users/%s/%s.rw.json?props=*'
-                                 % (self.id_initial, self.id), auth=(self.id, password))
-            if r.status_code == 200:
+            r = requests.get(self.url + '/bin/querybuilder.json?path=/home/users&1_property=rep:authorizableId&'
+                                        '1_property.value=%s&p.limit=-1' % self.id, auth=(self.id, password))
+            if r.status_code == 200 and len(r.json()['hits']):
                 old_password_valid = True
                 self.old_password = password
                 break
