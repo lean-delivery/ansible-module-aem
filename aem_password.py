@@ -163,10 +163,8 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             id=dict(required=True),
-            new_password=dict(required=True, no_log=True),
-            old_password=dict(required=True, type='list', no_log=True),
-            admin_user=dict(required=False),  # no longer needed
-            admin_password=dict(required=False, no_log=True),  # no longer needed
+            new_password=dict(required=True, no_log=False),
+            old_password=dict(required=True, type='list', no_log=False),
             host=dict(required=True),
             port=dict(required=True, type='int'),
             ignore_err=dict(default=False, type='bool'),
