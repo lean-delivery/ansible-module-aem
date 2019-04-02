@@ -116,21 +116,14 @@ class AEMPassword(object):
     # --------------------------------------------------------------------------------
     def set_password(self):
         if not self.module.check_mode:
-            if self.aem61:
-                fields = [
-                    ('plain', self.new_password),
-                    ('verify', self.new_password),
-                    ('old', self.old_password),
-                ]
-                r = requests.post(self.url + '/crx/explorer/ui/setpassword.jsp',
-                                  auth=(self.id, self.old_password), data=fields)
-            else:
-                fields = [
-                    (':currentPassword', self.old_password),
-                    ('rep:password', self.new_password),
-                ]
-                r = requests.post(self.url + '/home/users/%s/%s.rw.html'
-                                  % (self.id_initial, self.id), auth=(self.id, self.old_password), data=fields)
+            fields = [
+                ('plain', self.new_password),
+                ('verify', self.new_password),
+                ('old', self.old_password),
+            ]
+            r = requests.post(self.url + '/crx/explorer/ui/setpassword.jsp',
+                              auth=(self.id, self.old_password), data=fields)
+
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to change password: %s - %s' % (r.status_code, r.text))
         self.changed = True
