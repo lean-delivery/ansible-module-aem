@@ -338,7 +338,6 @@ class AEMAgent(object):
             if 'logLevel' not in self.info['jcr:content']:
                 self.info['jcr:content']['logLevel'] = 'info'
             if self.log_level != self.info['jcr:content'].get('logLevel'):
-                self.msg.append("Second '%s' to '%s'" % (self.info['jcr:content']['logLevel'], self.log_level))
                 update_required = True
                 self.msg.append(
                     "log level updated from '%s' to '%s'" % (self.info['jcr:content']['logLevel'], self.log_level))
