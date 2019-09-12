@@ -11,5 +11,10 @@ python:
 install:
   - pip install --upgrade pycodestyle
 
+addons:
+  sonarcloud:
+    organization: "lean-delivery"
+
 script:
   - pycodestyle
+  - sonar-scanner
