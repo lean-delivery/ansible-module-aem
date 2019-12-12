@@ -279,18 +279,7 @@ class AEMUser(object):
     # Adapted from: http://thelivingpearl.com/2013/01/02/generating-and-checking-passwords-in-python/
     # --------------------------------------------------------------------------------
     def check_password(self):
-        # strength = ['Blank','Very Weak','Weak','Medium','Strong','Very Strong']
-        score = 1
-
-        if len(self.password) < 1:
-            return strength[0]
-        if len(self.password) < 4:
-            return strength[1]
-
-        if len(self.password) >= 8:
-            score = score + 1
-        if len(self.password) >= 12:
-            score = score + 1
+        score = 0
 
         if re.search('\d+', self.password):
             score = score + 1
@@ -299,9 +288,9 @@ class AEMUser(object):
         if re.search('.,[,!,@,#,$,%,^,&,*,(,),_,~,-,]', self.password):
             score = score + 1
 
-        if score < 5:
+        if len(self.password)<12 or score < 3:
             self.module.fail_json(
-                msg="Password too weak. Minimum length is 12, with characters from three of groups: upper, lower, numeric and special")
+                msg="Password too weak. Minimum length is 12, with characters from three of groups: upper/lower, numeric and special")
 
     # --------------------------------------------------------------------------------
     # Return status and msg to Ansible.
