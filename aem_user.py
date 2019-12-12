@@ -288,7 +288,7 @@ class AEMUser(object):
         if re.search('.,[,!,@,#,$,%,^,&,*,(,),_,~,-,]', self.password):
             score = score + 1
 
-        if len(self.password)<12 or score < 3:
+        if len(self.password) < 12 or score < 3:
             self.module.fail_json(
                 msg="Password too weak. Minimum length is 12, with characters from three of groups: upper/lower, numeric and special")
 
