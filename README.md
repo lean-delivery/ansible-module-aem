@@ -28,7 +28,7 @@ ansible-pull -U https://github.com/lean-delivery/ansible-modules-aem -e modules_
     modules_path: "{{ lookup('env','ansible_modules_path') | default('~/.ansible/plugins/modules', true)}}"
     modules_version: "{{ lookup('env','ansible_modules_version') | default('master', true)}}"
   tasks:
-    - name: Make sure that modules directory is exists
+    - name: Make sure that modules directory exists
       file:
         path: "{{ modules_path }}"
         state: directory
