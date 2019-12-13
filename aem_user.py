@@ -285,7 +285,7 @@ class AEMUser(object):
             score = score + 1
         if re.search('[a-z]', self.password) and re.search('[A-Z]', self.password):
             score = score + 1
-        if re.search('.,[,!,@,#,$,%,^,&,*,(,),_,~,-,]', self.password):
+        if re.search('[^A-Za-z0-9]', self.password):
             score = score + 1
 
         if len(self.password) < 12 or score < 3:
