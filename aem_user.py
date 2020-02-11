@@ -127,6 +127,7 @@ class AEMUser(object):
             self.groups.append("everyone")
 
         self.get_user_info()
+        pass
 
     # --------------------------------------------------------------------------------
     # Look up user info.
@@ -142,7 +143,7 @@ class AEMUser(object):
             info = json.loads(r.text)
             if len(info['hits']) == 0:
                 self.exists = False
-                return `test`
+                return
             self.path = info['hits'][0]['jcr:path']
         else:
             self.path = '/home/users/%s/%s' % (self.id_initial, self.id)
