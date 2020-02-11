@@ -98,7 +98,7 @@ EXAMPLES = '''
 # --------------------------------------------------------------------------------
 # AEMUser class.
 # --------------------------------------------------------------------------------
-class AEMUser(object)
+class AEMUser(object):
     def __init__(self, module):
         self.module = module
         self.state = self.module.params['state']
@@ -319,6 +319,7 @@ def main():
         ),
         supports_check_mode=True
     )
+	test = ''
 
     user = AEMUser(module)
 
