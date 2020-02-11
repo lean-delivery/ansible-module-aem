@@ -201,7 +201,8 @@ class AEMGroup(object):
                 groups = ','.join(self.groups).lower()
                 if curr_groups != groups:
                     self.update_groups()
-            self.add_permissions()
+            if self.permissions:
+                self.add_permissions()
             if self.root_groups:
                 self.get_root_groups_path()
                 self.add_to_root_groups()
@@ -210,7 +211,8 @@ class AEMGroup(object):
             if not self.name:
                 self.module.fail_json(msg='Missing required argument: name')
             self.create_group()
-            self.add_permissions()
+            if self.permissions:
+                self.add_permissions()
             if self.root_groups:
                 self.get_root_groups_path()
                 self.add_to_root_groups()
