@@ -319,7 +319,7 @@ def main():
         ),
         supports_check_mode=True
     )
-	test = ''
+    test = ''
 
     user = AEMUser(module)
 
