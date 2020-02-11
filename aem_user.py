@@ -127,7 +127,6 @@ class AEMUser(object):
             self.groups.append("everyone")
 
         self.get_user_info()
-        pass
 
     # --------------------------------------------------------------------------------
     # Look up user info.
