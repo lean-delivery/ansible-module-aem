@@ -142,7 +142,7 @@ class AEMUser(object):
             info = json.loads(r.text)
             if len(info['hits']) == 0:
                 self.exists = False
-                return
+                return `test`
             self.path = info['hits'][0]['jcr:path']
         else:
             self.path = '/home/users/%s/%s' % (self.id_initial, self.id)
@@ -319,7 +319,6 @@ def main():
         ),
         supports_check_mode=True
     )
-    test = ''
 
     user = AEMUser(module)
 
