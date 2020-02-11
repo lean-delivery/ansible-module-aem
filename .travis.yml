@@ -17,4 +17,4 @@ addons:
 
 script:
   - pycodestyle
-  - sonar-scanner
+  - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then sonar-scanner; fi'
