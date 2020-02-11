@@ -261,10 +261,7 @@ class AEMGroup(object):
         if not self.module.check_mode and self.groups:
             for group in self.groups:
                 fields['memberEntry'] = group
-                r = requests.post(self.url + '%s' % self.path, auth=self.auth,
-                                  files={
-                                      "memberAction": "addMembers",
-                                      "memberEntry": "administrators"})
+                r = requests.post(self.url + '%s' % self.path, auth=self.auth, data=fields)
             if r.status_code != 200:
                 self.module.fail_json(msg='failed to update groups: %s - %s' % (r.status_code, r.text))
         self.changed = True
