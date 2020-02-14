@@ -17,5 +17,4 @@ addons:
 
 script:
   - pycodestyle
-  - export
-  - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then sonar-scanner; fi'
+  - 'if [ "$TRAVIS_PULL_REQUEST_SLUG" == "$TRAVIS_REPO_SLUG" ] || [ "$TRAVIS_PULL_REQUEST_SLUG" == "" ]; then sonar-scanner; fi'
