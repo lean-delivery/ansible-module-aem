@@ -1,19 +1,21 @@
+---
 on:
   push:
     branches:
       - master
-      - github-action
   pull_request:
     types: [opened, synchronize, reopened]
-name: Main Workflow
+name: CI
 jobs:
   pycodestyle:
+    name: PyCodeStyle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - uses: ricardochaves/python-lint@v1.3.0
+      - name: PyCodeStyle Scan
+        uses: ricardochaves/python-lint@v1.3.0
         with:
           python-root-list: "*.py"
           use-pylint: false
@@ -23,14 +25,15 @@ jobs:
           use-mypy: false
           use-isort: false
           extra-pycodestyle-options: "--config=tox.ini --verbose"
-  # sonarcloud:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         fetch-depth: 0
-  #     - name: SonarCloud Scan
-  #       uses: sonarsource/sonarcloud-github-action@master
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: SonarCloud Scan
+        uses: sonarsource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
