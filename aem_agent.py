@@ -536,8 +536,8 @@ class AEMAgent(object):
     # --------------------------------------------------------------------------------
     def delete_agent(self):
         if not self.module.check_mode:
-            r_data= {':operation': 'delete'}
-            r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth, data = r_data)
+            r_data = {':operation': 'delete'}
+            r = requests.post(self.url + '/etc/replication/%s/%s' % (self.folder, self.name), auth=self.auth, data=r_data)
             if r.status_code != 204:
                 self.module.fail_json(msg='failed to delete agent: %s - %s' % (r.status_code, r.text))
         self.changed = True
